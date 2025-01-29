@@ -11,6 +11,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const glbFilePath = process.argv[2];
+const outputFilePath = process.argv[3];
 const envMapUrl = process.env.ENV_MAP_URL;
 
 if (!glbFilePath) {
@@ -31,6 +32,7 @@ if (!glbFilePath) {
         <script src="https://cdn.jsdelivr.net/npm/three@latest/build/three.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/loaders/GLTFLoader.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/loaders/RGBELoader.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/loaders/DRACOLoader.js"></script>
         <script>
           THREE.ColorManagement.legacyMode = false;
           THREE.ColorManagement.enabled = true;
@@ -77,6 +79,9 @@ if (!glbFilePath) {
           scene.add(modelGroup); 
 
           const gltfLoader = new THREE.GLTFLoader();
+          const dracoLoader = new THREE.DRACOLoader();
+          dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/')
+          gltfLoader.setDRACOLoader(dracoLoader)
           gltfLoader.load('${glbFilePath}', (gltf) => {
             const model = gltf.scene;
             modelGroup.add(model);
@@ -103,9 +108,9 @@ if (!glbFilePath) {
 
             if (gltf.animations && gltf.animations.length > 0) {
               mixer = new THREE.AnimationMixer(modelGroup); 
-              gltf.animations.forEach((clip) => {
-                mixer.clipAction(clip).play();
-              });
+              // gltf.animations.forEach((clip) => {
+                mixer.clipAction(gltf.animations[0]).play();
+              // });
               hasAnimations = true;
             }
 
@@ -122,10 +127,11 @@ if (!glbFilePath) {
               const center = new THREE.Vector3();
               box.getCenter(center);
 
+              model.position.sub(center);
               modelGroup.position.x -= center.x;
               modelGroup.position.z -= center.z;
 
-              modelGroup.position.y -= center.y * scaleFactor;
+              modelGroup.position.y -= center.y / 2;
 
               const scaledBox = new THREE.Box3().setFromObject(modelGroup);
               const scaledSize = new THREE.Vector3();
@@ -144,6 +150,11 @@ if (!glbFilePath) {
               camera.updateProjectionMatrix();
 
               window.glbRendered = true;
+
+
+              if(mixer) {
+                mixer.clipAction(gltf.animations[0]).reset();
+              }
             }, 3000);
           });
 
@@ -158,7 +169,7 @@ if (!glbFilePath) {
     </html>
   `);
 
-  await page.waitForFunction('window.glbRendered === true', { timeout: 5000 });
+  await page.waitForFunction("window.glbRendered === true", { timeout: 50000 });
 
   if (await page.evaluate(() => hasAnimations)) {
     const pngFiles = [];
@@ -172,7 +183,7 @@ if (!glbFilePath) {
     }
 
     const images = pngFiles.map((filePath) => sharp(filePath));
-    await apng.framesToApng(images, "./animated.png");
+    await apng.framesToApng(images, outputFilePath);
 
     pngFiles.forEach((filePath) => {
       fs.unlinkSync(filePath);
@@ -180,7 +191,7 @@ if (!glbFilePath) {
     });
   } else {
     await page.screenshot({
-      path: path.join(__dirname, "static_image.png"),
+      path: path.join(__dirname, outputFilePath),
       clip: { x: 0, y: 0, width: 512, height: 512 },
     });
     console.log("Still image saved.");
