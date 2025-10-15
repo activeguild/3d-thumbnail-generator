@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import UPNG from 'upng-js';
 
 export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError }) {
@@ -58,7 +59,17 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         renderer.setSize(canvasSize, canvasSize);
         renderer.setPixelRatio(1);
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
         rendererRef.current = renderer;
+
+        // Load HDR environment map
+        const rgbeLoader = new RGBELoader();
+        const envMap = await new Promise((resolve, reject) => {
+          rgbeLoader.load('/environment.hdr', resolve, undefined, reject);
+        });
+
+        envMap.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = envMap;
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 1);
