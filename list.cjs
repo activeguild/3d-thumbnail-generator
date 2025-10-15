@@ -53,26 +53,22 @@ const main = async () => {
         let stdoutData = "";
         let stderrData = "";
 
-        // 標準出力を取得
         child.stdout.on("data", (data) => {
           stdoutData += data.toString();
         });
 
-        // 標準エラー出力を取得
         child.stderr.on("data", (data) => {
           stderrData += data.toString();
         });
 
-        // プロセス終了時の処理
         child.on("close", (code) => {
           if (code === 0) {
-            resolve(stdoutData.trim()); // 成功時
+            resolve(stdoutData.trim());
           } else {
-            reject(new Error(`終了コード ${code}: ${stderrData.trim()}`)); // エラー時
+            reject(new Error(`終了コード ${code}: ${stderrData.trim()}`));
           }
         });
 
-        // エラー発生時の処理
         child.on("error", (err) => {
           reject(err);
         });
@@ -89,47 +85,6 @@ const main = async () => {
 
       await runNodeScript(scriptPath, args);
     }
-
-    // const results = await list.reduce(async (prevPromise, file) => {
-    //   const args = [file.fileUrl, file.outputUrl];
-    //   const scriptPath = "./index.js";
-
-    //   await runNodeScript(scriptPath, args);
-    //   return [];
-    // }, Promise.resolve([]));
-
-    //   list.map(async (file) => {
-    //     const args = [file.fileUrl, file.outputUrl];
-    //     const scriptPath = './index.js';
-
-    //     await runNodeScript(scriptPath, args);
-
-    //     // Node.js プロセスを実行
-    //     // const child = spawn("node", ['./index.js', ...args]);
-
-    //     // // 標準出力を受け取る
-    //     // child.stdout.on("data", (data) => {
-    //     //   console.log(`stdout: ${data}`);
-    //     // });
-
-    //     // // 標準エラー出力を受け取る
-    //     // child.stderr.on("data", (data) => {
-    //     //   console.error(`stderr: ${data}`);
-    //     // });
-
-    //     // // プロセス終了時の処理
-    //     // child.on("close", (code) => {
-    //     //   console.log(`子プロセスが終了しました。終了コード: ${code}`);
-    //     // });
-    //     return;
-    //   });
-
-    // 結果を出力またはファイルに保存
-    // console.log(list);
-
-    // ファイルに保存する場合
-    //   fs.writeFileSync("checklist.md", markdownChecklist);
-    //   console.log("checklist.md に書き出しました。");
   } catch (error) {
     console.error("エラー:", error);
   }

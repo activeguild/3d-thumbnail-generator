@@ -4,17 +4,25 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "serve": "http-server ./public --cors",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "cli": "node index.js",
+    "batch": "node list.cjs"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/three": "^0.180.0",
     "dotenv": "^16.4.5",
     "http-server": "^14.1.1",
-    "puppeteer": "^23.3.0",
-    "sharp": "^0.33.5",
-    "sharp-apng": "^0.1.5"
+    "jszip": "^3.10.1",
+    "next": "^15.5.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0",
+    "upng-js": "^2.1.0"
   }
 }
