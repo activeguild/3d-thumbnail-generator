@@ -10,11 +10,16 @@ import UPNG from 'upng-js';
 export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError }) {
   const canvasRef = useRef(null);
   const [status, setStatus] = useState('initializing');
+  const [mounted, setMounted] = useState(false);
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
   const cameraRef = useRef(null);
   const mixerRef = useRef(null);
   const animationIdRef = useRef(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!file) return;
@@ -25,6 +30,10 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
       try {
         setStatus('loading');
 
+        // Enable color management (Three.js r160)
+        THREE.ColorManagement.legacyMode = false;
+        THREE.ColorManagement.enabled = true;
+
         // Create off-screen canvas
         const canvas = document.createElement('canvas');
         canvas.width = 512;
@@ -33,7 +42,6 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
 
         // Scene setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(backgroundColor);
         sceneRef.current = scene;
 
         // Camera setup
@@ -57,27 +65,25 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           preserveDrawingBuffer: true,
         });
         renderer.setSize(canvasSize, canvasSize);
-        renderer.setPixelRatio(1);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0xF2F6FF);
+        renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.0;
         rendererRef.current = renderer;
 
         // Load HDR environment map
         const rgbeLoader = new RGBELoader();
-        const envMap = await new Promise((resolve, reject) => {
-          rgbeLoader.load('/environment.hdr', resolve, undefined, reject);
+        await new Promise((resolve, reject) => {
+          rgbeLoader.load('/environment.hdr', function(texture) {
+              texture.mapping = THREE.EquirectangularReflectionMapping;
+              texture.encoding = THREE.LinearEncoding;
+              scene.environment = texture;
+              scene.background = texture;
+              resolve();
+            }, undefined, reject);
         });
 
-        envMap.mapping = THREE.EquirectangularReflectionMapping;
-        scene.environment = envMap;
-
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-        scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 5, 5);
-        scene.add(directionalLight);
+        if (isCancelled) return;
 
         // Load model
         const modelGroup = new THREE.Group();
@@ -107,6 +113,16 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
             child.geometry.computeBoundingBox();
             child.material.side = THREE.DoubleSide;
             child.material.needsUpdate = true;
+
+            if (child.material.map) {
+              child.material.needsUpdate = true;
+            }
+
+            ['normalMap', 'metalnessMap', 'roughnessMap', 'emissiveMap'].forEach((map) => {
+              if (child.material[map]) {
+                child.material.needsUpdate = true;
+              }
+            });
           }
         });
 
@@ -120,7 +136,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           mixerRef.current = mixer;
         }
 
-        // Center and scale model
+        // Center and scale model (matching reference implementation)
         const box = new THREE.Box3().setFromObject(modelGroup);
         const size = new THREE.Vector3();
         box.getSize(size);
@@ -132,11 +148,33 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
 
         const center = new THREE.Vector3();
         box.getCenter(center);
+
         loadedModel.position.sub(center);
+        modelGroup.position.x -= center.x;
+        modelGroup.position.z -= center.z;
+
+        modelGroup.position.y -= center.y / 2;
+
+        const scaledBox = new THREE.Box3().setFromObject(modelGroup);
+        const scaledSize = new THREE.Vector3();
+        scaledBox.getSize(scaledSize);
+        const yCorrection = (scaledSize.y - size.y * scaleFactor) / 2;
+
+        modelGroup.position.y += yCorrection;
 
         camera.position.set(maxDimension * 1.5, maxDimension * 1.5, maxDimension * 1.5);
         camera.lookAt(0, 0, 0);
+
+        camera.left = -canvasSize / 2;
+        camera.right = canvasSize / 2;
+        camera.top = canvasSize / 2;
+        camera.bottom = -canvasSize / 2;
         camera.updateProjectionMatrix();
+
+        // Reset animation if present
+        if (mixer) {
+          mixer.clipAction(gltf.animations[0]).reset();
+        }
 
         // Wait for initial render
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -260,6 +298,10 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         return 'Processing...';
     }
   };
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div style={{
