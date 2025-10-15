@@ -6,7 +6,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import UPNG from 'upng-js';
 
-export default function ThreeDViewer({ file, onComplete, onError }) {
+export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError }) {
   const canvasRef = useRef(null);
   const [status, setStatus] = useState('initializing');
   const sceneRef = useRef(null);
@@ -32,7 +32,7 @@ export default function ThreeDViewer({ file, onComplete, onError }) {
 
         // Scene setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xF2F6FF);
+        scene.background = new THREE.Color(backgroundColor);
         sceneRef.current = scene;
 
         // Camera setup
@@ -199,17 +199,21 @@ export default function ThreeDViewer({ file, onComplete, onError }) {
         }
 
         // Cleanup
-        renderer.dispose();
-        scene.traverse((object) => {
-          if (object.geometry) object.geometry.dispose();
-          if (object.material) {
-            if (Array.isArray(object.material)) {
-              object.material.forEach(material => material.dispose());
-            } else {
-              object.material.dispose();
+        if (renderer) {
+          renderer.dispose();
+        }
+        if (scene) {
+          scene.traverse((object) => {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+              if (Array.isArray(object.material)) {
+                object.material.forEach(material => material.dispose());
+              } else {
+                object.material.dispose();
+              }
             }
-          }
-        });
+          });
+        }
 
       } catch (error) {
         if (!isCancelled) {
@@ -227,7 +231,7 @@ export default function ThreeDViewer({ file, onComplete, onError }) {
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [file, onComplete, onError]);
+  }, [file, backgroundColor, onComplete, onError]);
 
   const getStatusMessage = () => {
     switch (status) {

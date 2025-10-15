@@ -18,6 +18,8 @@ export default function Home() {
   const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+  const [backgroundColor, setBackgroundColor] = useState('#F2F6FF');
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDrag = (e) => {
     e.preventDefault();
@@ -40,7 +42,7 @@ export default function Home() {
       );
 
       if (fileList.length === 0) {
-        setError('Please upload .glb or .gltf files');
+        setError('Please upload .glb files');
         return;
       }
 
@@ -59,7 +61,7 @@ export default function Home() {
       );
 
       if (fileList.length === 0) {
-        setError('Please upload .glb or .gltf files');
+        setError('Please upload .glb files');
         return;
       }
 
@@ -79,8 +81,11 @@ export default function Home() {
     if (currentIndex + 1 < files.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // All files processed, download
-      downloadResults(newResults);
+      // All files processed, download (only once)
+      if (!isDownloading) {
+        setIsDownloading(true);
+        downloadResults(newResults);
+      }
     }
   };
 
@@ -122,6 +127,7 @@ export default function Home() {
       setProcessing(false);
       setCurrentIndex(0);
       setResults([]);
+      setIsDownloading(false);
     }, 1000);
   };
 
@@ -131,6 +137,7 @@ export default function Home() {
     setProcessing(false);
     setCurrentIndex(0);
     setResults([]);
+    setIsDownloading(false);
   };
 
   const handleReset = () => {
@@ -139,6 +146,7 @@ export default function Home() {
     setCurrentIndex(0);
     setResults([]);
     setError(null);
+    setIsDownloading(false);
   };
 
   return (
@@ -149,11 +157,32 @@ export default function Home() {
         </h1>
 
         <p className={styles.description}>
-          Upload your 3D models (.glb or .gltf) to generate thumbnails
+          Upload your 3D models (.glb) to generate thumbnails
         </p>
 
         {!processing ? (
           <div className={styles.form}>
+            <div className={styles.settingsPanel}>
+              <label className={styles.colorLabel}>
+                <span>Background Color:</span>
+                <div className={styles.colorInputWrapper}>
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className={styles.colorInput}
+                  />
+                  <input
+                    type="text"
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className={styles.colorTextInput}
+                    placeholder="#F2F6FF"
+                  />
+                </div>
+              </label>
+            </div>
+
             <div
               className={`${styles.dropZone} ${dragActive ? styles.dragActive : ''}`}
               onDragEnter={handleDrag}
@@ -204,6 +233,7 @@ export default function Home() {
             <ThreeDViewer
               key={currentIndex}
               file={files[currentIndex]}
+              backgroundColor={backgroundColor}
               onComplete={handleComplete}
               onError={handleError}
             />
