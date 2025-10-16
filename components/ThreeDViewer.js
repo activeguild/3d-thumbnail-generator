@@ -65,7 +65,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           preserveDrawingBuffer: true,
         });
         renderer.setSize(canvasSize, canvasSize);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
         renderer.setClearColor(0xF2F6FF);
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -205,7 +205,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           preserveDrawingBuffer: true,
         });
         renderer.setSize(canvasSize, canvasSize);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
         renderer.setClearColor(0xF2F6FF);
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
