@@ -38,11 +38,11 @@ export default function Home() {
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const fileList = Array.from(e.dataTransfer.files).filter(
-        file => file.name.endsWith('.glb') || file.name.endsWith('.gltf')
+        file => file.name.endsWith('.glb') || file.name.endsWith('.png')
       );
 
       if (fileList.length === 0) {
-        setError('Please upload .glb files');
+        setError('Please upload .glb or .png files');
         return;
       }
 
@@ -57,11 +57,11 @@ export default function Home() {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const fileList = Array.from(e.target.files).filter(
-        file => file.name.endsWith('.glb') || file.name.endsWith('.gltf')
+        file => file.name.endsWith('.glb') || file.name.endsWith('.png')
       );
 
       if (fileList.length === 0) {
-        setError('Please upload .glb files');
+        setError('Please upload .glb or .png files');
         return;
       }
 
@@ -96,7 +96,7 @@ export default function Home() {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.href = url;
-      link.download = fileName.replace(/\.(glb|gltf)$/, '.png');
+      link.download = fileName.replace(/\.(glb)$/, '.png');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -106,7 +106,7 @@ export default function Home() {
       const zip = new JSZip();
 
       for (const { blob, fileName } of resultsList) {
-        const pngFileName = fileName.replace(/\.(glb|gltf)$/, '.png');
+        const pngFileName = fileName.replace(/\.(glb)$/, '.png');
         zip.file(pngFileName, blob);
       }
 
@@ -157,7 +157,7 @@ export default function Home() {
         </h1>
 
         <p className={styles.description}>
-          Upload your 3D models (.glb) to generate thumbnails
+          Upload your 3D models .glb or PNG images to generate thumbnails
         </p>
 
         {!processing ? (
@@ -193,7 +193,7 @@ export default function Home() {
               <input
                 type="file"
                 id="file-input"
-                accept=".glb,.gltf"
+                accept=".glb,.png"
                 multiple
                 onChange={handleFileChange}
                 className={styles.fileInput}

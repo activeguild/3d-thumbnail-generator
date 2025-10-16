@@ -26,6 +26,146 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
 
     let isCancelled = false;
 
+    const processPNG = async () => {
+      try {
+        setStatus('loading');
+
+        // Enable color management (Three.js r160)
+        THREE.ColorManagement.legacyMode = false;
+        THREE.ColorManagement.enabled = true;
+
+        // Create off-screen canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        canvasRef.current = canvas;
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        sceneRef.current = scene;
+
+        // Camera setup - same as GLB
+        const canvasSize = 512;
+        const camera = new THREE.OrthographicCamera(
+          -canvasSize / 2,
+          canvasSize / 2,
+          canvasSize / 2,
+          -canvasSize / 2,
+          -1000,
+          1000
+        );
+        camera.position.set(5, 5, 5);
+        camera.lookAt(0, 0, 0);
+        cameraRef.current = camera;
+
+        // Renderer setup - same background as GLB
+        const renderer = new THREE.WebGLRenderer({
+          canvas: canvas,
+          antialias: true,
+          preserveDrawingBuffer: true,
+        });
+        renderer.setSize(canvasSize, canvasSize);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0xF2F6FF);
+        renderer.outputEncoding = THREE.LinearEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        rendererRef.current = renderer;
+
+        // Load HDR environment map - same as GLB
+        const rgbeLoader = new RGBELoader();
+        await new Promise((resolve, reject) => {
+          rgbeLoader.load('/environment.hdr', function(texture) {
+              texture.mapping = THREE.EquirectangularReflectionMapping;
+              texture.encoding = THREE.LinearEncoding;
+              scene.environment = texture;
+              scene.background = texture;
+              resolve();
+            }, undefined, reject);
+        });
+
+        if (isCancelled) return;
+
+        // Load PNG texture
+        const textureLoader = new THREE.TextureLoader();
+        const imageUrl = URL.createObjectURL(file);
+
+        const texture = await new Promise((resolve, reject) => {
+          textureLoader.load(imageUrl, resolve, undefined, reject);
+        });
+
+        URL.revokeObjectURL(imageUrl);
+
+        if (isCancelled) return;
+
+        // Create plane geometry
+        const geometry = new THREE.PlaneGeometry(canvasSize * 0.8, canvasSize * 0.8);
+
+        // Create material with transparency support
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+                  opacity:1,
+          side: THREE.DoubleSide,
+          alphaTest: 0.01,
+          toneMapped: false,
+                  metalness:0.42
+        });
+
+        const plane = new THREE.Mesh(geometry, material);
+        scene.add(plane);
+
+        // Wait for initial render
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (isCancelled) return;
+
+        // Generate thumbnail
+        setStatus('rendering');
+
+        renderer.render(scene, camera);
+
+        // Create a temporary 2D canvas for extracting pixel data
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 512;
+        tempCanvas.height = 512;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(canvas, 0, 0);
+
+        tempCanvas.toBlob((blob) => {
+          if (!isCancelled) {
+            setStatus('complete');
+            onComplete?.(blob, false, file.name);
+          }
+        }, 'image/png');
+
+        // Cleanup
+        if (renderer) {
+          renderer.dispose();
+        }
+        if (scene) {
+          scene.traverse((object) => {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+              if (Array.isArray(object.material)) {
+                object.material.forEach(material => material.dispose());
+              } else {
+                object.material.dispose();
+              }
+            }
+          });
+        }
+        if (texture) {
+          texture.dispose();
+        }
+
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Error processing PNG:', error);
+          onError?.(error);
+        }
+      }
+    };
+
     const processModel = async () => {
       try {
         setStatus('loading');
@@ -272,7 +412,12 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
       }
     };
 
-    processModel();
+    // Check file type and process accordingly
+    if (file.name.endsWith('.png')) {
+      processPNG();
+    } else {
+      processModel();
+    }
 
     return () => {
       isCancelled = true;
