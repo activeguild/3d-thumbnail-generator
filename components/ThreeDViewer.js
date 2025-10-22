@@ -44,7 +44,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         const scene = new THREE.Scene();
         sceneRef.current = scene;
 
-        // Camera setup - same as GLB
+        // Camera setup - front view for PNG
         const canvasSize = 512;
         const camera = new THREE.OrthographicCamera(
           -canvasSize / 2,
@@ -54,7 +54,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           -1000,
           1000
         );
-        camera.position.set(5, 5, 5);
+        camera.position.set(0, 0, 5);
         camera.lookAt(0, 0, 0);
         cameraRef.current = camera;
 
@@ -97,8 +97,26 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
 
         if (isCancelled) return;
 
-        // Create plane geometry
-        const geometry = new THREE.PlaneGeometry(canvasSize * 0.8, canvasSize * 0.8);
+        // Calculate aspect ratio and plane size
+        const imageWidth = texture.image.width;
+        const imageHeight = texture.image.height;
+        const aspectRatio = imageWidth / imageHeight;
+
+        let planeWidth, planeHeight;
+        const maxSize = canvasSize * 0.8;
+
+        if (aspectRatio > 1) {
+          // Landscape: width is larger
+          planeWidth = maxSize;
+          planeHeight = maxSize / aspectRatio;
+        } else {
+          // Portrait or square: height is larger or equal
+          planeHeight = maxSize;
+          planeWidth = maxSize * aspectRatio;
+        }
+
+        // Create plane geometry with correct aspect ratio
+        const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
 
         // Create material with transparency support
         const material = new THREE.MeshBasicMaterial({
