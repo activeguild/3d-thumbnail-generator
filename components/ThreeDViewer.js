@@ -66,19 +66,22 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         });
         renderer.setSize(canvasSize, canvasSize);
         renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
-        renderer.setClearColor(0xF2F6FF);
+        // Convert hex color to THREE.Color
+        const bgColor = new THREE.Color(backgroundColor);
+        renderer.setClearColor(bgColor);
+        scene.background = bgColor;
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         rendererRef.current = renderer;
 
-        // Load HDR environment map - same as GLB
+        // Load HDR environment map - same as GLB (only for lighting, not background)
         const rgbeLoader = new RGBELoader();
         await new Promise((resolve, reject) => {
           rgbeLoader.load('/environment.hdr', function(texture) {
               texture.mapping = THREE.EquirectangularReflectionMapping;
               texture.encoding = THREE.LinearEncoding;
               scene.environment = texture;
-              scene.background = texture;
+              // Don't set scene.background here - use user's backgroundColor instead
               resolve();
             }, undefined, reject);
         });
@@ -224,19 +227,22 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         });
         renderer.setSize(canvasSize, canvasSize);
         renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
-        renderer.setClearColor(0xF2F6FF);
+        // Convert hex color to THREE.Color
+        const bgColor = new THREE.Color(backgroundColor);
+        renderer.setClearColor(bgColor);
+        scene.background = bgColor;
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         rendererRef.current = renderer;
 
-        // Load HDR environment map
+        // Load HDR environment map (only for lighting, not background)
         const rgbeLoader = new RGBELoader();
         await new Promise((resolve, reject) => {
           rgbeLoader.load('/environment.hdr', function(texture) {
               texture.mapping = THREE.EquirectangularReflectionMapping;
               texture.encoding = THREE.LinearEncoding;
               scene.environment = texture;
-              scene.background = texture;
+              // Don't set scene.background here - use user's backgroundColor instead
               resolve();
             }, undefined, reject);
         });
