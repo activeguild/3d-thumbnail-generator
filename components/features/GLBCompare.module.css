@@ -148,8 +148,8 @@
 }
 
 .dropZone {
-  background: rgba(255, 255, 255, 0.05);
-  border: 2px dashed rgba(255, 255, 255, 0.3);
+  background: #1a1a2e;
+  border: 3px dashed #2d3748;
   border-radius: 12px;
   height: 400px;
   display: flex;
@@ -162,7 +162,7 @@
 .dropZone:hover,
 .dropZone.dragActive {
   border-color: #818cf8;
-  background: rgba(129, 140, 248, 0.1);
+  background: #1e1e34;
 }
 
 .fileInput {
@@ -174,19 +174,19 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: #94a3b8;
   cursor: pointer;
 }
 
 .dropIcon {
   font-size: 3rem;
   font-weight: 300;
-  color: rgba(255, 255, 255, 0.4);
+  color: #818cf8;
 }
 
 .browseText {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: #64748b;
 }
 
 .comparisonTable {
