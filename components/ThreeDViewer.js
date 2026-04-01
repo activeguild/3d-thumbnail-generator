@@ -311,16 +311,27 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           mixerRef.current = mixer;
         }
 
+        // Helper: force skeleton updates on all SkinnedMeshes
+        const updateSkeletons = () => {
+          modelGroup.traverse((child) => {
+            if (child.isSkinnedMesh && child.skeleton) {
+              child.skeleton.update();
+            }
+          });
+        };
+
         // For animated models, sample multiple frames to get the full bounding box
+        // skeleton.update() is required to get the actual animated pose bounding box
+        // (without it, setFromObject returns the bind-pose which can be vastly different)
         const box = new THREE.Box3();
         if (hasAnimations && mixer) {
           const clip = gltf.animations[0];
           const sampleCount = 20;
           const dt = clip.duration / sampleCount;
-          mixer.setTime(0);
           for (let i = 0; i <= sampleCount; i++) {
             mixer.setTime(i * dt);
-            mixer.update(0);
+            modelGroup.updateMatrixWorld(true);
+            updateSkeletons();
             const frameBox = new THREE.Box3().setFromObject(modelGroup);
             if (i === 0) {
               box.copy(frameBox);
@@ -329,7 +340,8 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
             }
           }
           mixer.setTime(0);
-          mixer.update(0);
+          modelGroup.updateMatrixWorld(true);
+          updateSkeletons();
         } else {
           box.setFromObject(modelGroup);
         }
