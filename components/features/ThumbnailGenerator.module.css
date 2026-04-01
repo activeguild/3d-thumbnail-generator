@@ -22,7 +22,7 @@
   line-height: 1.15;
   font-size: 3.5rem;
   text-align: center;
-  color: white;
+  color: #e2e8f0;
   margin-bottom: 1rem;
 }
 
@@ -30,7 +30,7 @@
   text-align: center;
   line-height: 1.5;
   font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(226, 232, 240, 0.7);
   margin-bottom: 3rem;
 }
 
@@ -40,11 +40,12 @@
 }
 
 .settingsPanel {
-  background: white;
+  background: #1a1a2e;
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .colorLabel {
@@ -52,7 +53,7 @@
   flex-direction: column;
   gap: 0.75rem;
   font-weight: 600;
-  color: #2d3748;
+  color: #cbd5e0;
   font-size: 0.95rem;
 }
 
@@ -65,34 +66,37 @@
 .colorInput {
   width: 60px;
   height: 40px;
-  border: 2px solid #cbd5e0;
+  border: 2px solid #2d3748;
   border-radius: 8px;
   cursor: pointer;
   padding: 2px;
+  background: #1a1a2e;
 }
 
 .colorInput:hover {
-  border-color: #667eea;
+  border-color: #818cf8;
 }
 
 .colorTextInput {
   flex: 1;
   padding: 0.5rem 0.75rem;
-  border: 2px solid #cbd5e0;
+  border: 2px solid #2d3748;
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: monospace;
   transition: border-color 0.2s;
+  background: #12121a;
+  color: #e2e8f0;
 }
 
 .colorTextInput:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #818cf8;
 }
 
 .dropZone {
-  background: white;
-  border: 3px dashed #cbd5e0;
+  background: #1a1a2e;
+  border: 3px dashed #2d3748;
   border-radius: 12px;
   padding: 3rem;
   text-align: center;
@@ -102,13 +106,13 @@
 }
 
 .dropZone:hover {
-  border-color: #667eea;
-  background: #f7fafc;
+  border-color: #818cf8;
+  background: #1e1e34;
 }
 
 .dropZone.dragActive {
-  border-color: #667eea;
-  background: #edf2f7;
+  border-color: #818cf8;
+  background: #1e1e34;
   transform: scale(1.02);
 }
 
@@ -122,48 +126,50 @@
   align-items: center;
   gap: 1rem;
   cursor: pointer;
-  color: #4a5568;
+  color: #94a3b8;
 }
 
 .icon {
   width: 64px;
   height: 64px;
-  color: #667eea;
+  color: #818cf8;
 }
 
 .or {
-  color: #a0aec0;
+  color: #64748b;
   font-size: 0.9rem;
 }
 
 .browse {
-  color: #667eea;
+  color: #818cf8;
   font-weight: 600;
 }
 
 .multipleNote {
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
   font-style: italic;
 }
 
 .error {
-  background: #fed7d7;
-  color: #c53030;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
   text-align: center;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .result {
-  background: white;
+  background: #1a1a2e;
   padding: 3rem;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   text-align: center;
   width: 100%;
   max-width: 600px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .progressInfo {
@@ -173,13 +179,13 @@
 }
 
 .progressInfo h3 {
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 0.5rem;
   font-size: 1.5rem;
 }
 
 .progressText {
-  color: #4a5568;
+  color: #94a3b8;
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
@@ -187,22 +193,22 @@
 .progressBar {
   width: 100%;
   height: 8px;
-  background: #e2e8f0;
+  background: #2d3748;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%);
   transition: width 0.3s ease;
   border-radius: 4px;
 }
 
 .resetButton {
   padding: 1rem 2rem;
-  background: #e2e8f0;
-  color: #2d3748;
+  background: #2d3748;
+  color: #e2e8f0;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -212,17 +218,18 @@
 }
 
 .resetButton:hover {
-  background: #cbd5e0;
+  background: #3d4a5e;
   transform: translateY(-2px);
 }
 
 .fileList {
   width: 100%;
   max-width: 600px;
-  background: white;
+  background: #1a1a2e;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .fileListHeader {
@@ -230,18 +237,18 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .fileListTitle {
   font-size: 1rem;
   font-weight: 600;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .downloadAllButton {
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
   color: white;
   border: none;
   border-radius: 6px;
@@ -265,13 +272,13 @@
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .fileItem:hover {
-  background: #f7fafc;
+  background: rgba(129, 140, 248, 0.05);
 }
 
 .fileItem:last-child {
@@ -279,7 +286,7 @@
 }
 
 .fileItemSelected {
-  background: #edf2f7;
+  background: rgba(129, 140, 248, 0.1);
 }
 
 .thumbnailWrapper {
@@ -287,7 +294,7 @@
   height: 64px;
   border-radius: 6px;
   overflow: hidden;
-  background: #f0f0f0;
+  background: #12121a;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -303,7 +310,7 @@
 .thumbnailSpinner {
   width: 24px;
   height: 24px;
-  border: 3px solid #667eea;
+  border: 3px solid #818cf8;
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -321,7 +328,7 @@
 .fileName {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #2d3748;
+  color: #e2e8f0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -329,27 +336,27 @@
 
 .cameraInfo {
   font-size: 0.75rem;
-  color: #718096;
+  color: #64748b;
   font-family: monospace;
   margin-top: 0.25rem;
 }
 
 .downloadButton {
   background: none;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #2d3748;
   border-radius: 6px;
   padding: 0.4rem 0.6rem;
   cursor: pointer;
-  color: #667eea;
+  color: #818cf8;
   font-size: 0.85rem;
   transition: all 0.15s;
   flex-shrink: 0;
 }
 
 .downloadButton:hover {
-  background: #667eea;
+  background: #818cf8;
   color: white;
-  border-color: #667eea;
+  border-color: #818cf8;
 }
 
 .downloadButton:disabled {

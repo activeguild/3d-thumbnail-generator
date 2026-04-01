@@ -1,7 +1,7 @@
 .appContainer {
   display: flex;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0f0f14;
 }
 
 .mainContent {
@@ -21,7 +21,7 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0f0f14;
 }
 
 .main {
@@ -40,7 +40,7 @@
   line-height: 1.15;
   font-size: 3.5rem;
   text-align: center;
-  color: white;
+  color: #e2e8f0;
   margin-bottom: 1rem;
 }
 
@@ -48,7 +48,7 @@
   text-align: center;
   line-height: 1.5;
   font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(226, 232, 240, 0.7);
   margin-bottom: 3rem;
 }
 
@@ -58,11 +58,12 @@
 }
 
 .settingsPanel {
-  background: white;
+  background: #1a1a2e;
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .colorLabel {
@@ -70,7 +71,7 @@
   flex-direction: column;
   gap: 0.75rem;
   font-weight: 600;
-  color: #2d3748;
+  color: #cbd5e0;
   font-size: 0.95rem;
 }
 
@@ -83,34 +84,37 @@
 .colorInput {
   width: 60px;
   height: 40px;
-  border: 2px solid #cbd5e0;
+  border: 2px solid #2d3748;
   border-radius: 8px;
   cursor: pointer;
   padding: 2px;
+  background: #1a1a2e;
 }
 
 .colorInput:hover {
-  border-color: #667eea;
+  border-color: #818cf8;
 }
 
 .colorTextInput {
   flex: 1;
   padding: 0.5rem 0.75rem;
-  border: 2px solid #cbd5e0;
+  border: 2px solid #2d3748;
   border-radius: 8px;
   font-size: 0.95rem;
   font-family: monospace;
   transition: border-color 0.2s;
+  background: #12121a;
+  color: #e2e8f0;
 }
 
 .colorTextInput:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #818cf8;
 }
 
 .dropZone {
-  background: white;
-  border: 3px dashed #cbd5e0;
+  background: #1a1a2e;
+  border: 3px dashed #2d3748;
   border-radius: 12px;
   padding: 3rem;
   text-align: center;
@@ -120,19 +124,19 @@
 }
 
 .dropZone:hover {
-  border-color: #667eea;
-  background: #f7fafc;
+  border-color: #818cf8;
+  background: #1e1e34;
 }
 
 .dropZone.dragActive {
-  border-color: #667eea;
-  background: #edf2f7;
+  border-color: #818cf8;
+  background: #1e1e34;
   transform: scale(1.02);
 }
 
 .dropZone.hasFile {
-  border-color: #48bb78;
-  background: #f0fff4;
+  border-color: #34d399;
+  background: rgba(52, 211, 153, 0.05);
 }
 
 .fileInput {
@@ -145,34 +149,34 @@
   align-items: center;
   gap: 1rem;
   cursor: pointer;
-  color: #4a5568;
+  color: #94a3b8;
 }
 
 .icon {
   width: 64px;
   height: 64px;
-  color: #667eea;
+  color: #818cf8;
 }
 
 .dropZone.hasFile .icon {
-  color: #48bb78;
+  color: #34d399;
 }
 
 .fileName {
   font-weight: 600;
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 1.5rem;
 }
 
 .thumbnailResult {
   margin-top: 2rem;
   padding-top: 2rem;
-  border-top: 2px solid #e2e8f0;
+  border-top: 2px solid #2d3748;
 }
 
 .thumbnailResult h3 {
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 1rem;
 }
 
@@ -183,13 +187,13 @@
 }
 
 .progressInfo h3 {
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 0.5rem;
   font-size: 1.5rem;
 }
 
 .progressText {
-  color: #4a5568;
+  color: #94a3b8;
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
@@ -197,43 +201,43 @@
 .progressBar {
   width: 100%;
   height: 8px;
-  background: #e2e8f0;
+  background: #2d3748;
   border-radius: 4px;
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%);
   transition: width 0.3s ease;
   border-radius: 4px;
 }
 
 .fileSize {
   font-size: 0.9rem;
-  color: #718096;
+  color: #64748b;
 }
 
 .or {
-  color: #a0aec0;
+  color: #64748b;
   font-size: 0.9rem;
 }
 
 .browse {
-  color: #667eea;
+  color: #818cf8;
   font-weight: 600;
 }
 
 .multipleNote {
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
   font-style: italic;
 }
 
 .button {
   width: 100%;
   padding: 1rem 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -245,7 +249,7 @@
 
 .button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 20px rgba(129, 140, 248, 0.2);
 }
 
 .button:disabled {
@@ -254,33 +258,35 @@
 }
 
 .error {
-  background: #fed7d7;
-  color: #c53030;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
   text-align: center;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .result {
-  background: white;
+  background: #1a1a2e;
   padding: 3rem;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   text-align: center;
   width: 100%;
   max-width: 600px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .resultTitle {
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 1.5rem;
   font-size: 2rem;
 }
 
 .badge {
   display: inline-block;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 20px;
@@ -292,7 +298,7 @@
 .thumbnailContainer {
   margin: 2rem 0;
   padding: 1rem;
-  background: #f7fafc;
+  background: #12121a;
   border-radius: 8px;
 }
 
@@ -300,7 +306,7 @@
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .actions {
@@ -324,22 +330,22 @@
 }
 
 .downloadButton {
-  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
   color: white;
 }
 
 .downloadButton:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(72, 187, 120, 0.3);
+  box-shadow: 0 6px 12px rgba(52, 211, 153, 0.2);
 }
 
 .resetButton {
-  background: #e2e8f0;
-  color: #2d3748;
+  background: #2d3748;
+  color: #e2e8f0;
 }
 
 .resetButton:hover {
-  background: #cbd5e0;
+  background: #3d4a5e;
   transform: translateY(-2px);
 }
 

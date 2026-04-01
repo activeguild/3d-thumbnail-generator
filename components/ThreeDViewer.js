@@ -527,7 +527,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
       alignItems: 'center',
       gap: '1rem',
       padding: '2rem',
-      background: 'white',
+      background: '#1a1a2e',
       borderRadius: '8px',
       minHeight: '200px',
       justifyContent: 'center'
@@ -535,12 +535,12 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
       <div style={{
         width: '48px',
         height: '48px',
-        border: '4px solid #667eea',
+        border: '4px solid #818cf8',
         borderTopColor: 'transparent',
         borderRadius: '50%',
         animation: 'spin 1s linear infinite'
       }} />
-      <p style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: 500 }}>
+      <p style={{ fontSize: '1.1rem', color: '#e2e8f0', fontWeight: 500 }}>
         {getStatusMessage()}
       </p>
       <style jsx>{`

@@ -1,24 +1,25 @@
 .sidebar {
   width: 280px;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(18, 18, 26, 0.95);
   backdrop-filter: blur(10px);
-  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   padding: 1.5rem 0;
   z-index: 10;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .logo {
   padding: 0 1.5rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 1rem;
 }
 
 .logo h2 {
   margin: 0;
   font-size: 1.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -45,17 +46,18 @@
 }
 
 .navItem:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba(129, 140, 248, 0.1);
 }
 
 .navItem.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.2) 0%, rgba(167, 139, 250, 0.2) 100%);
+  border: 1px solid rgba(129, 140, 248, 0.3);
 }
 
 .navItem.active .icon,
 .navItem.active .name,
 .navItem.active .description {
-  color: white;
+  color: #e2e8f0;
 }
 
 .icon {
@@ -73,12 +75,12 @@
 .name {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #2d3748;
+  color: #cbd5e0;
 }
 
 .description {
   font-size: 0.75rem;
-  color: #718096;
+  color: #64748b;
 }
 
 @media (max-width: 768px) {
@@ -86,6 +88,8 @@
     width: 100%;
     height: auto;
     padding: 1rem 0;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .nav {

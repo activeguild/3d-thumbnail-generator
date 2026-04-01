@@ -14,12 +14,12 @@
 .title {
   margin: 0;
   font-size: 2.5rem;
-  color: white;
+  color: #e2e8f0;
   margin-bottom: 0.5rem;
 }
 
 .description {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(226, 232, 240, 0.6);
   font-size: 1.1rem;
   margin: 0;
 }
@@ -32,7 +32,7 @@
 
 .playButton {
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -44,19 +44,19 @@
 
 .playButton:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
 }
 
 .playButton:disabled {
-  background: #4a5568;
+  background: #2d3748;
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .resetButton {
   padding: 0.75rem 1.5rem;
-  background: #e2e8f0;
-  color: #2d3748;
+  background: #2d3748;
+  color: #e2e8f0;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -66,7 +66,7 @@
 }
 
 .resetButton:hover {
-  background: #cbd5e0;
+  background: #3d4a5e;
   transform: translateY(-2px);
 }
 
@@ -160,8 +160,8 @@
 
 .dropZone:hover,
 .dropZone.dragActive {
-  border-color: #667eea;
-  background: rgba(102, 126, 234, 0.1);
+  border-color: #818cf8;
+  background: rgba(129, 140, 248, 0.1);
 }
 
 .fileInput {
@@ -189,17 +189,18 @@
 }
 
 .comparisonTable {
-  background: white;
+  background: #1a1a2e;
   border-radius: 12px;
   padding: 1.5rem;
   width: 100%;
   max-width: 800px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .comparisonTable h3 {
   margin: 0 0 1rem 0;
-  color: #2d3748;
+  color: #e2e8f0;
   font-size: 1.25rem;
 }
 
@@ -212,20 +213,20 @@
 .comparisonTable td {
   padding: 0.75rem;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .comparisonTable th {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #718096;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .comparisonTable td {
   font-size: 0.95rem;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .comparisonTable tr:last-child td {
@@ -233,12 +234,12 @@
 }
 
 .diffPositive {
-  color: #c53030;
+  color: #f87171;
   font-weight: 600;
 }
 
 .diffNegative {
-  color: #276749;
+  color: #34d399;
   font-weight: 600;
 }
 

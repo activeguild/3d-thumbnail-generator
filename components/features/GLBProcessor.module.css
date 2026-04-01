@@ -22,7 +22,7 @@
   line-height: 1.15;
   font-size: 3.5rem;
   text-align: center;
-  color: white;
+  color: #e2e8f0;
   margin-bottom: 1rem;
 }
 
@@ -30,7 +30,7 @@
   text-align: center;
   line-height: 1.5;
   font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(226, 232, 240, 0.7);
   margin-bottom: 3rem;
 }
 
@@ -40,17 +40,18 @@
 }
 
 .optionsPanel {
-  background: white;
+  background: #1a1a2e;
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .optionsPanel h3 {
   margin: 0 0 1rem 0;
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .optionLabel {
@@ -58,7 +59,7 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 0.95rem;
-  color: #2d3748;
+  color: #cbd5e0;
   cursor: pointer;
 }
 
@@ -70,7 +71,7 @@
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #667eea;
+  accent-color: #818cf8;
 }
 
 .optionDisabled {
@@ -92,7 +93,7 @@
   flex-direction: column;
   gap: 0.5rem;
   font-size: 0.9rem;
-  color: #4a5568;
+  color: #94a3b8;
 }
 
 .slider {
@@ -100,7 +101,7 @@
   height: 6px;
   border-radius: 3px;
   appearance: none;
-  background: #e2e8f0;
+  background: #2d3748;
   outline: none;
   cursor: pointer;
 }
@@ -110,7 +111,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #667eea;
+  background: #818cf8;
   cursor: pointer;
   transition: transform 0.2s;
 }
@@ -123,20 +124,20 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #667eea;
+  background: #818cf8;
   cursor: pointer;
   border: none;
 }
 
 .sliderHint {
   font-size: 0.8rem;
-  color: #718096;
+  color: #64748b;
   font-style: italic;
 }
 
 .dropZone {
-  background: white;
-  border: 3px dashed #cbd5e0;
+  background: #1a1a2e;
+  border: 3px dashed #2d3748;
   border-radius: 12px;
   padding: 3rem;
   text-align: center;
@@ -146,13 +147,13 @@
 }
 
 .dropZone:hover {
-  border-color: #667eea;
-  background: #f7fafc;
+  border-color: #818cf8;
+  background: #1e1e34;
 }
 
 .dropZone.dragActive {
-  border-color: #667eea;
-  background: #edf2f7;
+  border-color: #818cf8;
+  background: #1e1e34;
   transform: scale(1.02);
 }
 
@@ -166,48 +167,50 @@
   align-items: center;
   gap: 1rem;
   cursor: pointer;
-  color: #4a5568;
+  color: #94a3b8;
 }
 
 .icon {
   width: 64px;
   height: 64px;
-  color: #667eea;
+  color: #818cf8;
 }
 
 .or {
-  color: #a0aec0;
+  color: #64748b;
   font-size: 0.9rem;
 }
 
 .browse {
-  color: #667eea;
+  color: #818cf8;
   font-weight: 600;
 }
 
 .multipleNote {
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
   font-style: italic;
 }
 
 .error {
-  background: #fed7d7;
-  color: #c53030;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
   padding: 1rem;
   border-radius: 8px;
   margin-bottom: 1rem;
   text-align: center;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .result {
-  background: white;
+  background: #1a1a2e;
   padding: 3rem;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
   text-align: center;
   width: 100%;
   max-width: 600px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .progressInfo {
@@ -217,13 +220,13 @@
 }
 
 .progressInfo h3 {
-  color: #2d3748;
+  color: #e2e8f0;
   margin-bottom: 0.5rem;
   font-size: 1.5rem;
 }
 
 .progressText {
-  color: #4a5568;
+  color: #94a3b8;
   margin-bottom: 1rem;
   font-size: 0.95rem;
 }
@@ -231,7 +234,7 @@
 .progressBar {
   width: 100%;
   height: 8px;
-  background: #e2e8f0;
+  background: #2d3748;
   border-radius: 4px;
   overflow: hidden;
   margin-bottom: 2rem;
@@ -239,7 +242,7 @@
 
 .progressFill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%);
   transition: width 0.3s ease;
   border-radius: 4px;
 }
@@ -250,7 +253,7 @@
   align-items: center;
   gap: 1rem;
   padding: 2rem;
-  background: #f7fafc;
+  background: #12121a;
   border-radius: 8px;
   margin-bottom: 2rem;
 }
@@ -258,8 +261,8 @@
 .spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid #e2e8f0;
-  border-top-color: #667eea;
+  border: 4px solid #2d3748;
+  border-top-color: #818cf8;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -273,14 +276,14 @@
 .processingStatus p {
   margin: 0;
   font-size: 1.1rem;
-  color: #2d3748;
+  color: #e2e8f0;
   font-weight: 500;
 }
 
 .resetButton {
   padding: 1rem 2rem;
-  background: #e2e8f0;
-  color: #2d3748;
+  background: #2d3748;
+  color: #e2e8f0;
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -290,8 +293,13 @@
 }
 
 .resetButton:hover {
-  background: #cbd5e0;
+  background: #3d4a5e;
   transform: translateY(-2px);
+}
+
+.resetButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Validation Results Styles */
@@ -301,11 +309,12 @@
 }
 
 .validationHeader {
-  background: white;
+  background: #1a1a2e;
   padding: 1.5rem;
   border-radius: 12px;
   margin-bottom: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .validationHeaderTop {
@@ -319,7 +328,7 @@
 .validationHeader h3 {
   margin: 0;
   font-size: 1.25rem;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .validationSummary {
@@ -333,7 +342,7 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.95rem;
-  color: #4a5568;
+  color: #94a3b8;
 }
 
 .summaryCount {
@@ -342,11 +351,11 @@
 }
 
 .summaryError {
-  color: #c53030;
+  color: #f87171;
 }
 
 .summaryWarning {
-  color: #d69e2e;
+  color: #fbbf24;
 }
 
 .validationList {
@@ -356,10 +365,11 @@
 }
 
 .validationItem {
-  background: white;
+  background: #1a1a2e;
   border-radius: 8px;
   padding: 1rem;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .validationItemHeader {
@@ -376,7 +386,7 @@
 }
 
 .validationItemHeader.clickable:hover {
-  background: #f7fafc;
+  background: rgba(129, 140, 248, 0.05);
   margin: -0.5rem;
   padding: 0.5rem;
   border-radius: 4px;
@@ -384,7 +394,7 @@
 
 .expandIcon {
   font-size: 0.75rem;
-  color: #718096;
+  color: #64748b;
   width: 1rem;
   flex-shrink: 0;
 }
@@ -397,13 +407,13 @@
 
 .fileName {
   font-weight: 600;
-  color: #2d3748;
+  color: #e2e8f0;
   word-break: break-all;
 }
 
 .fileSize {
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
 }
 
 .issueBadges {
@@ -420,33 +430,33 @@
 }
 
 .badgeError {
-  background: #fed7d7;
-  color: #c53030;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
 }
 
 .badgeWarning {
-  background: #fefcbf;
-  color: #b7791f;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
 }
 
 .badgeInfo {
-  background: #bee3f8;
-  color: #2b6cb0;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
 }
 
 .badgeHint {
-  background: #e9d8fd;
-  color: #6b46c1;
+  background: rgba(167, 139, 250, 0.15);
+  color: #a78bfa;
 }
 
 .badgeSuccess {
-  background: #c6f6d5;
-  color: #276749;
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
 }
 
 .badgeSkipped {
-  background: #e2e8f0;
-  color: #718096;
+  background: rgba(148, 163, 184, 0.1);
+  color: #64748b;
 }
 
 .modelInfo {
@@ -454,9 +464,9 @@
   gap: 1rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 0.85rem;
-  color: #718096;
+  color: #64748b;
 }
 
 .messageList {
@@ -476,23 +486,23 @@
 }
 
 .severityError {
-  background: #fff5f5;
-  border-left: 3px solid #c53030;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #f87171;
 }
 
 .severityWarning {
-  background: #fffff0;
-  border-left: 3px solid #d69e2e;
+  background: rgba(251, 191, 36, 0.1);
+  border-left: 3px solid #fbbf24;
 }
 
 .severityInfo {
-  background: #ebf8ff;
-  border-left: 3px solid #3182ce;
+  background: rgba(96, 165, 250, 0.1);
+  border-left: 3px solid #60a5fa;
 }
 
 .severityHint {
-  background: #faf5ff;
-  border-left: 3px solid #805ad5;
+  background: rgba(167, 139, 250, 0.1);
+  border-left: 3px solid #a78bfa;
 }
 
 .messageLabel {
@@ -504,14 +514,14 @@
 
 .messageText {
   flex: 1;
-  color: #2d3748;
+  color: #e2e8f0;
 }
 
 .messagePointer {
   font-family: monospace;
   font-size: 0.75rem;
-  color: #718096;
-  background: #edf2f7;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
 }
@@ -523,7 +533,7 @@
 
 .processButton {
   padding: 1rem 2rem;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #818cf8 0%, #a78bfa 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -535,11 +545,11 @@
 
 .processButton:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
 }
 
 .processButton:disabled {
-  background: #a0aec0;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
