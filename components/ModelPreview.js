@@ -47,12 +47,14 @@ export default function ModelPreview({
     const { horizontalAngle = 45, verticalAngle = 45, zoom = 1.0 } = params;
     const hRad = (horizontalAngle * Math.PI) / 180;
     const vRad = (verticalAngle * Math.PI) / 180;
-    const distance = baseDistanceRef.current / zoom;
+    const distance = baseDistanceRef.current;
     camera.position.set(
       distance * Math.cos(vRad) * Math.sin(hRad),
       distance * Math.sin(vRad),
       distance * Math.cos(vRad) * Math.cos(hRad)
     );
+    camera.zoom = zoom;
+    camera.updateProjectionMatrix();
     camera.lookAt(0, 0, 0);
     controls.update();
   }, []);
@@ -114,16 +116,14 @@ export default function ModelPreview({
       controls.enableDamping = true;
       controls.dampingFactor = 0.1;
       controls.enablePan = false;
-      controls.minDistance = 0;
-      controls.maxDistance = Infinity;
+      controls.minZoom = 0.5;
+      controls.maxZoom = 3.0;
       controlsRef.current = controls;
 
       // On camera change, notify parent
       controls.addEventListener('change', () => {
         const angles = sphericalFromPosition(camera.position);
-        const currentDistance = camera.position.length();
-        const zoom = baseDistanceRef.current / currentDistance;
-        const clampedZoom = Math.max(0.5, Math.min(3.0, zoom));
+        const clampedZoom = Math.max(0.5, Math.min(3.0, camera.zoom));
         onChangeRef.current?.({
           ...angles,
           zoom: Math.round(clampedZoom * 100) / 100,
@@ -200,7 +200,7 @@ export default function ModelPreview({
       const initParams = cameraParams || { horizontalAngle: 45, verticalAngle: 45, zoom: 1.0 };
       const hRad = (initParams.horizontalAngle * Math.PI) / 180;
       const vRad = (initParams.verticalAngle * Math.PI) / 180;
-      const initDistance = baseDistanceRef.current / initParams.zoom;
+      const initDistance = baseDistanceRef.current;
       camera.position.set(
         initDistance * Math.cos(vRad) * Math.sin(hRad),
         initDistance * Math.sin(vRad),
@@ -208,6 +208,7 @@ export default function ModelPreview({
       );
       camera.lookAt(0, 0, 0);
 
+      camera.zoom = initParams.zoom;
       camera.left = -canvasSize / 2;
       camera.right = canvasSize / 2;
       camera.top = canvasSize / 2;

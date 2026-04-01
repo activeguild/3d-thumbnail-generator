@@ -8,10 +8,10 @@ import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import UPNG from 'upng-js';
 
 function calcCameraPosition(maxDimension, cameraParams) {
-  const { horizontalAngle = 45, verticalAngle = 45, zoom = 1.0 } = cameraParams || {};
+  const { horizontalAngle = 45, verticalAngle = 45 } = cameraParams || {};
   const hRad = (horizontalAngle * Math.PI) / 180;
   const vRad = (verticalAngle * Math.PI) / 180;
-  const distance = (maxDimension * 1.5) / zoom;
+  const distance = maxDimension * 1.5;
   const x = distance * Math.cos(vRad) * Math.sin(hRad);
   const y = distance * Math.sin(vRad);
   const z = distance * Math.cos(vRad) * Math.cos(hRad);
@@ -341,6 +341,8 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         camera.position.copy(camPos);
         camera.lookAt(0, 0, 0);
 
+        const { zoom = 1.0 } = cameraParams || {};
+        camera.zoom = zoom;
         camera.left = -canvasSize / 2;
         camera.right = canvasSize / 2;
         camera.top = canvasSize / 2;
