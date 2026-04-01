@@ -216,6 +216,147 @@
   transform: translateY(-2px);
 }
 
+.fileList {
+  width: 100%;
+  max-width: 600px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.fileListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fileListTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.downloadAllButton {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.downloadAllButton:hover {
+  opacity: 0.9;
+}
+
+.downloadAllButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fileItem:hover {
+  background: #f7fafc;
+}
+
+.fileItem:last-child {
+  border-bottom: none;
+}
+
+.fileItemSelected {
+  background: #edf2f7;
+}
+
+.thumbnailWrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnailImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnailSpinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #667eea;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fileInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.fileName {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #2d3748;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cameraInfo {
+  font-size: 0.75rem;
+  color: #718096;
+  font-family: monospace;
+  margin-top: 0.25rem;
+}
+
+.downloadButton {
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  color: #667eea;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.downloadButton:hover {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.downloadButton:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .title {
     font-size: 2.5rem;
