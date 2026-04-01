@@ -21,8 +21,10 @@ export default function GLBProcessor() {
     removeAnimations: true,
     decimateKeyframes: false,
     decimateRatio: 0.5,
+    dracoCompress: false,
   });
   const [expandedItems, setExpandedItems] = useState({});
+  const [dracoStep, setDracoStep] = useState(null);
 
   useEffect(() => {
     import('gltf-validator').then((module) => {
@@ -172,6 +174,23 @@ export default function GLBProcessor() {
     }));
   };
 
+  const compressWithDraco = async (blob) => {
+    const formData = new FormData();
+    formData.append('file', blob, 'model.glb');
+
+    const response = await fetch('/api/draco-compress', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Draco compression failed');
+    }
+
+    return new Blob([await response.arrayBuffer()], { type: 'model/gltf-binary' });
+  };
+
   const startProcessing = async (fileList) => {
     setProcessing(true);
     setCurrentIndex(0);
@@ -182,11 +201,18 @@ export default function GLBProcessor() {
     for (let i = 0; i < fileList.length; i++) {
       setCurrentIndex(i);
       try {
-        const processedBlob = await processGLB(fileList[i], {
+        let processedBlob = await processGLB(fileList[i], {
           removeAnimations: processingOptions.removeAnimations,
           decimateKeyframes: processingOptions.decimateKeyframes,
           decimateRatio: processingOptions.decimateRatio,
         });
+
+        if (processingOptions.dracoCompress) {
+          setDracoStep('compressing');
+          processedBlob = await compressWithDraco(processedBlob);
+          setDracoStep(null);
+        }
+
         processedResults.push({
           blob: processedBlob,
           fileName: fileList[i].name
@@ -194,6 +220,7 @@ export default function GLBProcessor() {
       } catch (err) {
         console.error('Error processing file:', fileList[i].name, err);
         setError(`Failed to process ${fileList[i].name}: ${err.message}`);
+        setDracoStep(null);
       }
     }
 
@@ -251,6 +278,7 @@ export default function GLBProcessor() {
     setShowValidationResults(false);
     setExpandedItems({});
     setError(null);
+    setDracoStep(null);
   };
 
   const renderContent = () => {
@@ -444,11 +472,13 @@ export default function GLBProcessor() {
             <div className={styles.processingStatus}>
               <div className={styles.spinner} />
               <p>
-                {processingOptions.removeAnimations
-                  ? 'Removing animations...'
-                  : processingOptions.decimateKeyframes
-                    ? `Decimating keyframes (${Math.round(processingOptions.decimateRatio * 100)}%)...`
-                    : 'Processing...'}
+                {dracoStep === 'compressing'
+                  ? 'Compressing with Draco...'
+                  : processingOptions.removeAnimations
+                    ? 'Removing animations...'
+                    : processingOptions.decimateKeyframes
+                      ? `Decimating keyframes (${Math.round(processingOptions.decimateRatio * 100)}%)...`
+                      : 'Processing...'}
               </p>
             </div>
           </div>
@@ -522,6 +552,18 @@ export default function GLBProcessor() {
               </span>
             </div>
           )}
+          <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.dracoCompress}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                dracoCompress: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Draco Compress (+ WebP textures)</span>
+          </label>
         </div>
 
         <div
