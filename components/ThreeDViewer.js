@@ -7,36 +7,29 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import UPNG from 'upng-js';
 
-function compositeWithBackground(sourceCanvas, bgConfig, backgroundColor, size = 512) {
-  const outCanvas = document.createElement('canvas');
-  outCanvas.width = size;
-  outCanvas.height = size;
-  const ctx = outCanvas.getContext('2d');
+function createGradientTexture(bgConfig, size = 512) {
+  const gradCanvas = document.createElement('canvas');
+  gradCanvas.width = size;
+  gradCanvas.height = size;
+  const ctx = gradCanvas.getContext('2d');
 
-  // Draw background
-  if (bgConfig && bgConfig.gradient) {
-    const { color1, color2, angle = 180 } = bgConfig;
-    const rad = (angle * Math.PI) / 180;
-    const cx = size / 2;
-    const cy = size / 2;
-    const len = size / 2;
-    const x0 = cx - Math.sin(rad) * len;
-    const y0 = cy - Math.cos(rad) * len;
-    const x1 = cx + Math.sin(rad) * len;
-    const y1 = cy + Math.cos(rad) * len;
-    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-    grad.addColorStop(0, color1);
-    grad.addColorStop(1, color2);
-    ctx.fillStyle = grad;
-  } else {
-    ctx.fillStyle = backgroundColor || '#F2F6FF';
-  }
+  const { color1, color2, angle = 180 } = bgConfig;
+  const rad = (angle * Math.PI) / 180;
+  const cx = size / 2;
+  const cy = size / 2;
+  const len = size / 2;
+  const x0 = cx - Math.sin(rad) * len;
+  const y0 = cy - Math.cos(rad) * len;
+  const x1 = cx + Math.sin(rad) * len;
+  const y1 = cy + Math.cos(rad) * len;
+  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+  grad.addColorStop(0, color1);
+  grad.addColorStop(1, color2);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Draw 3D render on top
-  ctx.drawImage(sourceCanvas, 0, 0);
-
-  return outCanvas;
+  const texture = new THREE.CanvasTexture(gradCanvas);
+  return texture;
 }
 
 function calcCameraPosition(maxDimension, cameraParams) {
@@ -101,18 +94,17 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         camera.lookAt(0, 0, 0);
         cameraRef.current = camera;
 
-        // Renderer setup - transparent background for compositing
+        // Renderer setup
         const useGradient = backgroundConfig && backgroundConfig.gradient;
         const renderer = new THREE.WebGLRenderer({
           canvas: canvas,
           antialias: true,
           preserveDrawingBuffer: true,
-          alpha: useGradient,
         });
         renderer.setSize(canvasSize, canvasSize);
         renderer.setPixelRatio(1);
         if (useGradient) {
-          renderer.setClearColor(0x000000, 0);
+          scene.background = createGradientTexture(backgroundConfig, canvasSize);
         } else {
           const bgColor = new THREE.Color(backgroundColor);
           renderer.setClearColor(bgColor);
@@ -193,16 +185,11 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
 
         renderer.render(scene, camera);
 
-        // Composite with gradient background if needed
-        const outputCanvas = useGradient
-          ? compositeWithBackground(canvas, backgroundConfig, backgroundColor, 512)
-          : canvas;
-
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 512;
         tempCanvas.height = 512;
         const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(outputCanvas, 0, 0);
+        tempCtx.drawImage(canvas, 0, 0);
 
         tempCanvas.toBlob((blob) => {
           if (!isCancelled) {
@@ -271,18 +258,17 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         camera.lookAt(0, 0, 0);
         cameraRef.current = camera;
 
-        // Renderer setup - transparent background for gradient compositing
+        // Renderer setup
         const useGradient = backgroundConfig && backgroundConfig.gradient;
         const renderer = new THREE.WebGLRenderer({
           canvas: canvas,
           antialias: true,
           preserveDrawingBuffer: true,
-          alpha: useGradient,
         });
         renderer.setSize(canvasSize, canvasSize);
         renderer.setPixelRatio(1);
         if (useGradient) {
-          renderer.setClearColor(0x000000, 0);
+          scene.background = createGradientTexture(backgroundConfig, canvasSize);
         } else {
           const bgColor = new THREE.Color(backgroundColor);
           renderer.setClearColor(bgColor);
@@ -466,11 +452,8 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
 
             renderer.render(scene, camera);
 
-            // Composite with gradient background if needed, then copy to 2D canvas
-            const frameSource = useGradient
-              ? compositeWithBackground(canvas, backgroundConfig, backgroundColor, 512)
-              : canvas;
-            tempCtx.drawImage(frameSource, 0, 0);
+            // Copy WebGL canvas to 2D canvas
+            tempCtx.drawImage(canvas, 0, 0);
 
             // Get image data from 2D canvas
             const imageData = tempCtx.getImageData(0, 0, 512, 512);
@@ -493,16 +476,11 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
           // Generate static PNG
           renderer.render(scene, camera);
 
-          // Composite with gradient background if needed
-          const outputCanvas = useGradient
-            ? compositeWithBackground(canvas, backgroundConfig, backgroundColor, 512)
-            : canvas;
-
           const tempCanvas = document.createElement('canvas');
           tempCanvas.width = 512;
           tempCanvas.height = 512;
           const tempCtx = tempCanvas.getContext('2d');
-          tempCtx.drawImage(outputCanvas, 0, 0);
+          tempCtx.drawImage(canvas, 0, 0);
 
           tempCanvas.toBlob((blob) => {
             if (!isCancelled) {

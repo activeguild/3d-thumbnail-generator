@@ -28,10 +28,14 @@ export default function CameraDrawer({
   // Sync localParams when drawer opens with new params
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setLocalParams(cameraParams);
+      setLocalParams({
+        horizontalAngle: cameraParams.horizontalAngle,
+        verticalAngle: cameraParams.verticalAngle,
+        zoom: cameraParams.zoom,
+      });
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, cameraParams]);
+  }, [isOpen, cameraParams.horizontalAngle, cameraParams.verticalAngle, cameraParams.zoom]);
 
   const handlePreviewChange = useCallback((params) => {
     setLocalParams(params);
@@ -59,7 +63,7 @@ export default function CameraDrawer({
           </button>
         </div>
         <div className={styles.body}>
-          {isOpen && file && (
+          {isOpen && file && file.name?.endsWith('.glb') && (
             <div className={styles.previewContainer}>
               <ModelPreview
                 file={file}
