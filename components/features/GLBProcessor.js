@@ -242,12 +242,8 @@ export default function GLBProcessor() {
       await downloadResults(processedResults);
     }
 
-    setTimeout(() => {
-      setProcessing(false);
-      setFiles([]);
-      setCurrentIndex(0);
-      setResults([]);
-    }, 1000);
+    setProcessing(false);
+    setCurrentIndex(0);
   };
 
   const downloadResults = async (resultsList) => {
@@ -345,14 +341,15 @@ export default function GLBProcessor() {
             <div className={styles.validationHeaderTop}>
               <h3>{hasValidationResults ? 'Validation Results' : 'Selected Files'}</h3>
               <div className={styles.validationActions}>
-                <button onClick={handleReset} className={styles.resetButton}>
+                <button onClick={handleReset} className={styles.resetButton} disabled={processing}>
                   Reset
                 </button>
                 <button
                   onClick={() => startProcessing(files)}
                   className={styles.processButton}
+                  disabled={processing}
                 >
-                  Process Files
+                  {processing ? 'Processing...' : 'Process Files'}
                 </button>
               </div>
             </div>
@@ -371,6 +368,23 @@ export default function GLBProcessor() {
                 </>
               )}
             </div>
+            {processing && (
+              <div style={{ marginTop: '1rem' }}>
+                <div className={styles.progressBar}>
+                  <div
+                    className={styles.progressFill}
+                    style={{ width: `${((currentIndex + 1) / files.length) * 100}%` }}
+                  />
+                </div>
+                <p className={styles.progressText}>
+                  {dracoStep === 'uploading'
+                    ? `Uploading ${files[currentIndex]?.name}...`
+                    : dracoStep === 'compressing'
+                    ? `Compressing ${files[currentIndex]?.name}...`
+                    : `Processing ${files[currentIndex]?.name}... (${currentIndex + 1}/${files.length})`}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className={styles.validationList}>

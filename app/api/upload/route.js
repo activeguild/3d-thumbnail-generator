@@ -11,6 +11,7 @@ export async function POST(request) {
       onBeforeGenerateToken: async () => {
         return {
           allowedContentTypes: ['model/gltf-binary', 'application/octet-stream'],
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async () => {},
