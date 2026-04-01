@@ -14,6 +14,12 @@ const FEATURES = [
     name: 'GLB Batch Processing',
     icon: '⚙️',
     description: 'Remove animations from GLB files'
+  },
+  {
+    id: 'glb-compare',
+    name: 'GLB Compare',
+    icon: '🔍',
+    description: 'Compare two GLB files side by side'
   }
 ];
 

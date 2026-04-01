@@ -11,6 +11,11 @@ const GLBProcessor = dynamic(() => import('@/components/features/GLBProcessor'),
   loading: () => <p style={{color: 'white'}}>Loading GLB Processor...</p>
 });
 
+const GLBCompare = dynamic(() => import('@/components/features/GLBCompare'), {
+  ssr: false,
+  loading: () => <p style={{color: 'white'}}>Loading GLB Compare...</p>
+});
+
 export default function Home() {
   const [activeFeature, setActiveFeature] = useState('thumbnail');
 
@@ -20,6 +25,7 @@ export default function Home() {
       <main className={styles.mainContent}>
         {activeFeature === 'thumbnail' && <ThumbnailGenerator />}
         {activeFeature === 'glb-processor' && <GLBProcessor />}
+        {activeFeature === 'glb-compare' && <GLBCompare />}
       </main>
     </div>
   );

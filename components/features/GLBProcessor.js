@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import JSZip from 'jszip';
-import { removeAnimationsFromGLB } from '@/components/processors/glbAnimationRemover';
+import { processGLB } from '@/components/processors/glbAnimationRemover';
 import styles from './GLBProcessor.module.css';
 
 export default function GLBProcessor() {
@@ -17,8 +17,10 @@ export default function GLBProcessor() {
   const [dragActive, setDragActive] = useState(false);
   const [validator, setValidator] = useState(null);
   const [processingOptions, setProcessingOptions] = useState({
-    removeAnimations: true,
     validateFiles: true,
+    removeAnimations: true,
+    decimateKeyframes: false,
+    decimateRatio: 0.5,
   });
   const [expandedItems, setExpandedItems] = useState({});
 
@@ -180,7 +182,11 @@ export default function GLBProcessor() {
     for (let i = 0; i < fileList.length; i++) {
       setCurrentIndex(i);
       try {
-        const processedBlob = await removeAnimationsFromGLB(fileList[i]);
+        const processedBlob = await processGLB(fileList[i], {
+          removeAnimations: processingOptions.removeAnimations,
+          decimateKeyframes: processingOptions.decimateKeyframes,
+          decimateRatio: processingOptions.decimateRatio,
+        });
         processedResults.push({
           blob: processedBlob,
           fileName: fileList[i].name
@@ -437,7 +443,13 @@ export default function GLBProcessor() {
             </div>
             <div className={styles.processingStatus}>
               <div className={styles.spinner} />
-              <p>Removing animations...</p>
+              <p>
+                {processingOptions.removeAnimations
+                  ? 'Removing animations...'
+                  : processingOptions.decimateKeyframes
+                    ? `Decimating keyframes (${Math.round(processingOptions.decimateRatio * 100)}%)...`
+                    : 'Processing...'}
+              </p>
             </div>
           </div>
           <button onClick={handleReset} className={styles.resetButton}>
@@ -469,12 +481,47 @@ export default function GLBProcessor() {
               checked={processingOptions.removeAnimations}
               onChange={(e) => setProcessingOptions(prev => ({
                 ...prev,
-                removeAnimations: e.target.checked
+                removeAnimations: e.target.checked,
+                decimateKeyframes: e.target.checked ? false : prev.decimateKeyframes
               }))}
               className={styles.checkbox}
             />
             <span>Remove Animations</span>
           </label>
+          <label className={`${styles.optionLabel} ${processingOptions.removeAnimations ? styles.optionDisabled : ''}`}>
+            <input
+              type="checkbox"
+              checked={processingOptions.decimateKeyframes}
+              disabled={processingOptions.removeAnimations}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                decimateKeyframes: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Decimate Keyframes</span>
+          </label>
+          {processingOptions.decimateKeyframes && !processingOptions.removeAnimations && (
+            <div className={styles.sliderContainer}>
+              <label className={styles.sliderLabel}>
+                <span>Keep Ratio: {Math.round(processingOptions.decimateRatio * 100)}%</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="90"
+                  value={processingOptions.decimateRatio * 100}
+                  onChange={(e) => setProcessingOptions(prev => ({
+                    ...prev,
+                    decimateRatio: parseInt(e.target.value) / 100
+                  }))}
+                  className={styles.slider}
+                />
+              </label>
+              <span className={styles.sliderHint}>
+                Lower = more reduction (50% keeps every 2nd keyframe)
+              </span>
+            </div>
+          )}
         </div>
 
         <div
