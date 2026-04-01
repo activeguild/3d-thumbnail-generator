@@ -461,7 +461,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [file, backgroundColor, onComplete, onError, cameraParams]);
+  }, [file, backgroundColor, onComplete, onError, cameraParams?.horizontalAngle, cameraParams?.verticalAngle, cameraParams?.zoom]);
 
   const getStatusMessage = () => {
     switch (status) {
