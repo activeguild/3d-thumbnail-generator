@@ -1,71 +1,77 @@
+import { del } from '@vercel/blob';
 import { NodeIO } from '@gltf-transform/core';
-import { KHRDracoMeshCompression } from '@gltf-transform/extensions';
-import { draco } from '@gltf-transform/functions';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import {
+  draco,
+  dedup,
+  resample,
+  prune,
+  textureCompress,
+  flatten,
+} from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import sharp from 'sharp';
 
-async function compressTextures(document) {
-  const root = document.getRoot();
-  const textures = root.listTextures();
-
-  for (const texture of textures) {
-    const image = texture.getImage();
-    if (!image) continue;
-
-    const mimeType = texture.getMimeType();
-    if (mimeType === 'image/webp') continue;
-
-    try {
-      const compressed = await sharp(Buffer.from(image))
-        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
-        .toBuffer();
-
-      texture.setImage(new Uint8Array(compressed));
-      texture.setMimeType('image/webp');
-    } catch (err) {
-      console.warn(`Failed to compress texture: ${err.message}`);
-    }
-  }
-}
-
 export async function POST(request) {
+  const { searchParams } = new URL(request.url);
+  const url = searchParams.get('url');
+
+  if (!url) {
+    return Response.json({ error: 'No url provided' }, { status: 400 });
+  }
+
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
+    // Fetch GLB from Vercel Blob
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
 
-    if (!file) {
-      return Response.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
+    // Setup gltf-transform IO
     const io = new NodeIO()
-      .registerExtensions([KHRDracoMeshCompression])
+      .registerExtensions(ALL_EXTENSIONS)
       .registerDependencies({
         'draco3d.encoder': await draco3d.createEncoderModule(),
         'draco3d.decoder': await draco3d.createDecoderModule(),
       });
 
-    const document = await io.readBinary(uint8Array);
+    const document = await io.readBinary(new Uint8Array(buffer));
 
-    await compressTextures(document);
+    // Check for morph animations (Draco doesn't support them)
+    const hasMorphAnimation = document
+      .getRoot()
+      .listAnimations()
+      .some((anim) =>
+        anim.listChannels().some((ch) => ch.getTargetPath() === 'weights')
+      );
 
     await document.transform(
-      draco({ method: 'edgebreaker' })
+      resample(),
+      prune(),
+      dedup(),
+      ...(hasMorphAnimation ? [] : [draco()]),
+      textureCompress({
+        encoder: sharp,
+        targetFormat: 'webp',
+        resize: [1024, 1024],
+      }),
+      flatten()
     );
 
-    const outputBinary = await io.writeBinary(document);
+    const glb = await io.writeBinary(document);
 
-    return new Response(outputBinary, {
+    // Cleanup blob
+    del(url).catch(() => {});
+
+    return new Response(glb, {
       status: 200,
       headers: {
-        'Content-Type': 'application/octet-stream',
+        'Content-Type': 'model/gltf-binary',
+        'Content-Length': String(glb.length),
       },
     });
   } catch (err) {
     console.error('Draco compression failed:', err);
+    // Cleanup blob on error too
+    del(url).catch(() => {});
     return Response.json(
       { error: 'Compression failed: ' + err.message },
       { status: 500 }

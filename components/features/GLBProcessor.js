@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { upload } from '@vercel/blob/client';
 import JSZip from 'jszip';
 import { processGLB } from '@/components/processors/glbAnimationRemover';
 import styles from './GLBProcessor.module.css';
@@ -174,14 +175,21 @@ export default function GLBProcessor() {
     }));
   };
 
-  const compressWithDraco = async (blob) => {
-    const formData = new FormData();
-    formData.append('file', blob, 'model.glb');
-
-    const response = await fetch('/api/draco-compress', {
-      method: 'POST',
-      body: formData,
+  const compressWithDraco = async (blob, fileName) => {
+    // Upload to Vercel Blob
+    setDracoStep('uploading');
+    const file = new File([blob], fileName, { type: 'model/gltf-binary' });
+    const newBlob = await upload(file.name, file, {
+      access: 'public',
+      handleUploadUrl: '/api/upload',
     });
+
+    // Compress via API (pass Blob URL)
+    setDracoStep('compressing');
+    const response = await fetch(
+      `/api/draco-compress?url=${encodeURIComponent(newBlob.url)}`,
+      { method: 'POST' }
+    );
 
     if (!response.ok) {
       const error = await response.json();
@@ -208,8 +216,7 @@ export default function GLBProcessor() {
         });
 
         if (processingOptions.dracoCompress) {
-          setDracoStep('compressing');
-          processedBlob = await compressWithDraco(processedBlob);
+          processedBlob = await compressWithDraco(processedBlob, fileList[i].name);
           setDracoStep(null);
         }
 
@@ -472,7 +479,9 @@ export default function GLBProcessor() {
             <div className={styles.processingStatus}>
               <div className={styles.spinner} />
               <p>
-                {dracoStep === 'compressing'
+                {dracoStep === 'uploading'
+                  ? 'Uploading to cloud...'
+                  : dracoStep === 'compressing'
                   ? 'Compressing with Draco...'
                   : processingOptions.removeAnimations
                     ? 'Removing animations...'

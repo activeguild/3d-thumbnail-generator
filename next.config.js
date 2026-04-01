@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // No server-side rendering needed for this fully client-side app
+  experimental: {
+    outputFileTracingIncludes: {
+      '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
+    },
+  },
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     return config;

@@ -19,6 +19,7 @@
     "@gltf-transform/extensions": "^4.3.0",
     "@gltf-transform/functions": "^4.3.0",
     "@types/three": "^0.160.0",
+    "@vercel/blob": "^2.3.2",
     "dotenv": "^16.4.5",
     "draco3dgltf": "^1.5.7",
     "gltf-validator": "^2.0.0-dev.3.9",
