@@ -7,7 +7,18 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import UPNG from 'upng-js';
 
-export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError }) {
+function calcCameraPosition(maxDimension, cameraParams) {
+  const { horizontalAngle = 45, verticalAngle = 45, zoom = 1.0 } = cameraParams || {};
+  const hRad = (horizontalAngle * Math.PI) / 180;
+  const vRad = (verticalAngle * Math.PI) / 180;
+  const distance = (maxDimension * 1.5) / zoom;
+  const x = distance * Math.cos(vRad) * Math.sin(hRad);
+  const y = distance * Math.sin(vRad);
+  const z = distance * Math.cos(vRad) * Math.cos(hRad);
+  return new THREE.Vector3(x, y, z);
+}
+
+export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError, cameraParams }) {
   const canvasRef = useRef(null);
   const [status, setStatus] = useState('initializing');
   const [mounted, setMounted] = useState(false);
@@ -326,7 +337,8 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
 
         modelGroup.position.y += yCorrection;
 
-        camera.position.set(maxDimension * 1.5, maxDimension * 1.5, maxDimension * 1.5);
+        const camPos = calcCameraPosition(maxDimension, cameraParams);
+        camera.position.copy(camPos);
         camera.lookAt(0, 0, 0);
 
         camera.left = -canvasSize / 2;
@@ -449,7 +461,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [file, backgroundColor, onComplete, onError]);
+  }, [file, backgroundColor, onComplete, onError, cameraParams]);
 
   const getStatusMessage = () => {
     switch (status) {
