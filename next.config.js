@@ -2,7 +2,7 @@
 const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
-      '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
+      '/api/draco-compress': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
     },
   },
   webpack: (config) => {
