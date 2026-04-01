@@ -311,8 +311,30 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           mixerRef.current = mixer;
         }
 
-        // Center and scale model (matching reference implementation)
-        const box = new THREE.Box3().setFromObject(modelGroup);
+        // For animated models, sample multiple frames to get the full bounding box
+        const box = new THREE.Box3();
+        if (hasAnimations && mixer) {
+          const clip = gltf.animations[0];
+          const sampleCount = 20;
+          const dt = clip.duration / sampleCount;
+          mixer.setTime(0);
+          for (let i = 0; i <= sampleCount; i++) {
+            mixer.setTime(i * dt);
+            mixer.update(0);
+            const frameBox = new THREE.Box3().setFromObject(modelGroup);
+            if (i === 0) {
+              box.copy(frameBox);
+            } else {
+              box.union(frameBox);
+            }
+          }
+          mixer.setTime(0);
+          mixer.update(0);
+        } else {
+          box.setFromObject(modelGroup);
+        }
+
+        // Center and scale model
         const size = new THREE.Vector3();
         box.getSize(size);
 
