@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['draco3dgltf', 'sharp'],
   experimental: {
     outputFileTracingIncludes: {
       '/api/draco-compress': ['./node_modules/**/*.wasm', './node_modules/**/*.proto'],
