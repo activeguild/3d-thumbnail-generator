@@ -209,11 +209,16 @@ export default function GLBProcessor() {
     for (let i = 0; i < fileList.length; i++) {
       setCurrentIndex(i);
       try {
-        let processedBlob = await processGLB(fileList[i], {
-          removeAnimations: processingOptions.removeAnimations,
-          decimateKeyframes: processingOptions.decimateKeyframes,
-          decimateRatio: processingOptions.decimateRatio,
-        });
+        const needsThreeJsProcessing =
+          processingOptions.removeAnimations || processingOptions.decimateKeyframes;
+
+        let processedBlob = needsThreeJsProcessing
+          ? await processGLB(fileList[i], {
+              removeAnimations: processingOptions.removeAnimations,
+              decimateKeyframes: processingOptions.decimateKeyframes,
+              decimateRatio: processingOptions.decimateRatio,
+            })
+          : fileList[i];
 
         if (processingOptions.dracoCompress) {
           processedBlob = await compressWithDraco(processedBlob, fileList[i].name);

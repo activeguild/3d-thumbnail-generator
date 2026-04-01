@@ -11,7 +11,6 @@ export async function POST(request) {
       onBeforeGenerateToken: async () => {
         return {
           allowedContentTypes: ['model/gltf-binary'],
-          validUntil: Date.now() + 1000 * 60 * 10,
         };
       },
       onUploadCompleted: async () => {},
