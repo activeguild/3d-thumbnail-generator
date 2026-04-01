@@ -94,6 +94,65 @@
   border-color: #818cf8;
 }
 
+.bgToggle {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2d3748;
+}
+
+.bgToggleButton {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: #12121a;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bgToggleButton:first-child {
+  border-right: 1px solid #2d3748;
+}
+
+.bgToggleActive {
+  background: rgba(129, 140, 248, 0.15);
+  color: #818cf8;
+}
+
+.gradientPreview {
+  width: 100%;
+  height: 48px;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid #2d3748;
+}
+
+.angleSlider {
+  width: 100%;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #2d3748;
+  border-radius: 3px;
+  outline: none;
+  margin-top: 0.25rem;
+}
+
+.angleSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+  cursor: pointer;
+}
+
 .dropZone {
   background: #1a1a2e;
   border: 3px dashed #2d3748;

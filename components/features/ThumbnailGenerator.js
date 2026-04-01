@@ -25,6 +25,12 @@ export default function ThumbnailGenerator() {
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [backgroundColor, setBackgroundColor] = useState('#F2F6FF');
+  const [backgroundConfig, setBackgroundConfig] = useState({
+    gradient: false,
+    color1: '#F2F6FF',
+    color2: '#667eea',
+    angle: 180,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [regenerating, setRegenerating] = useState(false);
@@ -255,24 +261,98 @@ export default function ThumbnailGenerator() {
 
         <div className={styles.form}>
           <div className={styles.settingsPanel}>
-            <label className={styles.colorLabel}>
-              <span>Background Color:</span>
-              <div className={styles.colorInputWrapper}>
-                <input
-                  type="color"
-                  value={backgroundColor}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  className={styles.colorInput}
-                />
-                <input
-                  type="text"
-                  value={backgroundColor}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  className={styles.colorTextInput}
-                  placeholder="#F2F6FF"
-                />
-              </div>
-            </label>
+            <div className={styles.bgToggle}>
+              <button
+                className={`${styles.bgToggleButton} ${!backgroundConfig.gradient ? styles.bgToggleActive : ''}`}
+                onClick={() => setBackgroundConfig(prev => ({ ...prev, gradient: false }))}
+              >
+                Solid
+              </button>
+              <button
+                className={`${styles.bgToggleButton} ${backgroundConfig.gradient ? styles.bgToggleActive : ''}`}
+                onClick={() => setBackgroundConfig(prev => ({ ...prev, gradient: true }))}
+              >
+                Gradient
+              </button>
+            </div>
+
+            {!backgroundConfig.gradient ? (
+              <label className={styles.colorLabel}>
+                <span>Background Color:</span>
+                <div className={styles.colorInputWrapper}>
+                  <input
+                    type="color"
+                    value={backgroundColor}
+                    onChange={(e) => {
+                      setBackgroundColor(e.target.value);
+                      setBackgroundConfig(prev => ({ ...prev, color1: e.target.value }));
+                    }}
+                    className={styles.colorInput}
+                  />
+                  <input
+                    type="text"
+                    value={backgroundColor}
+                    onChange={(e) => {
+                      setBackgroundColor(e.target.value);
+                      setBackgroundConfig(prev => ({ ...prev, color1: e.target.value }));
+                    }}
+                    className={styles.colorTextInput}
+                    placeholder="#F2F6FF"
+                  />
+                </div>
+              </label>
+            ) : (
+              <>
+                <div className={styles.gradientPreview} style={{
+                  background: `linear-gradient(${backgroundConfig.angle}deg, ${backgroundConfig.color1}, ${backgroundConfig.color2})`,
+                }} />
+                <label className={styles.colorLabel}>
+                  <span>Color 1:</span>
+                  <div className={styles.colorInputWrapper}>
+                    <input
+                      type="color"
+                      value={backgroundConfig.color1}
+                      onChange={(e) => setBackgroundConfig(prev => ({ ...prev, color1: e.target.value }))}
+                      className={styles.colorInput}
+                    />
+                    <input
+                      type="text"
+                      value={backgroundConfig.color1}
+                      onChange={(e) => setBackgroundConfig(prev => ({ ...prev, color1: e.target.value }))}
+                      className={styles.colorTextInput}
+                    />
+                  </div>
+                </label>
+                <label className={styles.colorLabel}>
+                  <span>Color 2:</span>
+                  <div className={styles.colorInputWrapper}>
+                    <input
+                      type="color"
+                      value={backgroundConfig.color2}
+                      onChange={(e) => setBackgroundConfig(prev => ({ ...prev, color2: e.target.value }))}
+                      className={styles.colorInput}
+                    />
+                    <input
+                      type="text"
+                      value={backgroundConfig.color2}
+                      onChange={(e) => setBackgroundConfig(prev => ({ ...prev, color2: e.target.value }))}
+                      className={styles.colorTextInput}
+                    />
+                  </div>
+                </label>
+                <label className={styles.colorLabel}>
+                  <span>Angle: {backgroundConfig.angle}°</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={backgroundConfig.angle}
+                    onChange={(e) => setBackgroundConfig(prev => ({ ...prev, angle: Number(e.target.value) }))}
+                    className={styles.angleSlider}
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           <div
@@ -365,6 +445,7 @@ export default function ThumbnailGenerator() {
               key={`batch-${currentProcessingIndex}`}
               file={currentItem.file}
               backgroundColor={backgroundColor}
+              backgroundConfig={backgroundConfig}
               cameraParams={currentItem.cameraParams}
               onComplete={handleComplete}
               onError={handleError}
@@ -378,6 +459,7 @@ export default function ThumbnailGenerator() {
               key={`regen-${regenerateKey}`}
               file={selectedItem.file}
               backgroundColor={backgroundColor}
+              backgroundConfig={backgroundConfig}
               cameraParams={selectedItem.cameraParams}
               onComplete={handleRegenerateComplete}
               onError={handleRegenerateError}

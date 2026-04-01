@@ -7,6 +7,37 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import UPNG from 'upng-js';
 
+function createBackgroundTexture(bgConfig, size = 512) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  if (bgConfig && bgConfig.gradient) {
+    const { color1, color2, angle = 180 } = bgConfig;
+    const rad = (angle * Math.PI) / 180;
+    const cx = size / 2;
+    const cy = size / 2;
+    const len = size / 2;
+    const x0 = cx - Math.sin(rad) * len;
+    const y0 = cy - Math.cos(rad) * len;
+    const x1 = cx + Math.sin(rad) * len;
+    const y1 = cy + Math.cos(rad) * len;
+    const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, color1);
+    grad.addColorStop(1, color2);
+    ctx.fillStyle = grad;
+  } else {
+    const color = (bgConfig && bgConfig.color1) || bgConfig || '#F2F6FF';
+    ctx.fillStyle = color;
+  }
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function calcCameraPosition(maxDimension, cameraParams) {
   const { horizontalAngle = 45, verticalAngle = 45 } = cameraParams || {};
   const hRad = (horizontalAngle * Math.PI) / 180;
@@ -18,7 +49,7 @@ function calcCameraPosition(maxDimension, cameraParams) {
   return new THREE.Vector3(x, y, z);
 }
 
-export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComplete, onError, cameraParams }) {
+export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgroundConfig, onComplete, onError, cameraParams }) {
   const canvasRef = useRef(null);
   const [status, setStatus] = useState('initializing');
   const [mounted, setMounted] = useState(false);
@@ -76,11 +107,14 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           preserveDrawingBuffer: true,
         });
         renderer.setSize(canvasSize, canvasSize);
-        renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
-        // Convert hex color to THREE.Color
-        const bgColor = new THREE.Color(backgroundColor);
-        renderer.setClearColor(bgColor);
-        scene.background = bgColor;
+        renderer.setPixelRatio(1);
+        if (backgroundConfig && backgroundConfig.gradient) {
+          scene.background = createBackgroundTexture(backgroundConfig, canvasSize);
+        } else {
+          const bgColor = new THREE.Color(backgroundColor);
+          renderer.setClearColor(bgColor);
+          scene.background = bgColor;
+        }
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         rendererRef.current = renderer;
@@ -237,11 +271,14 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
           preserveDrawingBuffer: true,
         });
         renderer.setSize(canvasSize, canvasSize);
-        renderer.setPixelRatio(1); // Fixed pixel ratio to avoid zoom issues
-        // Convert hex color to THREE.Color
-        const bgColor = new THREE.Color(backgroundColor);
-        renderer.setClearColor(bgColor);
-        scene.background = bgColor;
+        renderer.setPixelRatio(1);
+        if (backgroundConfig && backgroundConfig.gradient) {
+          scene.background = createBackgroundTexture(backgroundConfig, canvasSize);
+        } else {
+          const bgColor = new THREE.Color(backgroundColor);
+          renderer.setClearColor(bgColor);
+          scene.background = bgColor;
+        }
         renderer.outputEncoding = THREE.LinearEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         rendererRef.current = renderer;
@@ -497,7 +534,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', onComp
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [file, backgroundColor, onComplete, onError, cameraParams?.horizontalAngle, cameraParams?.verticalAngle, cameraParams?.zoom]);
+  }, [file, backgroundColor, backgroundConfig?.gradient, backgroundConfig?.color1, backgroundConfig?.color2, backgroundConfig?.angle, onComplete, onError, cameraParams?.horizontalAngle, cameraParams?.verticalAngle, cameraParams?.zoom]);
 
   const getStatusMessage = () => {
     switch (status) {
