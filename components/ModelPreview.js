@@ -163,6 +163,9 @@ export default function ModelPreview({
       const loadedModel = gltf.scene;
       modelGroup.add(loadedModel);
 
+      let mixer = null;
+      const hasAnimations = gltf.animations && gltf.animations.length > 0;
+
       loadedModel.traverse((child) => {
         if (child.isMesh) {
           child.geometry.computeBoundingBox();
@@ -171,8 +174,42 @@ export default function ModelPreview({
         }
       });
 
-      // Center and scale
-      const box = new THREE.Box3().setFromObject(modelGroup);
+      if (hasAnimations) {
+        mixer = new THREE.AnimationMixer(modelGroup);
+        mixer.clipAction(gltf.animations[0]).play();
+      }
+
+      // For animated models, force skeleton update to get actual pose bounding box
+      const updateSkeletons = () => {
+        modelGroup.traverse((child) => {
+          if (child.isSkinnedMesh && child.skeleton) {
+            child.skeleton.update();
+          }
+        });
+      };
+
+      const box = new THREE.Box3();
+      if (hasAnimations && mixer) {
+        const clip = gltf.animations[0];
+        const sampleCount = 20;
+        const dt = clip.duration / sampleCount;
+        for (let i = 0; i <= sampleCount; i++) {
+          mixer.setTime(i * dt);
+          modelGroup.updateMatrixWorld(true);
+          updateSkeletons();
+          const frameBox = new THREE.Box3().setFromObject(modelGroup);
+          if (i === 0) {
+            box.copy(frameBox);
+          } else {
+            box.union(frameBox);
+          }
+        }
+        mixer.setTime(0);
+        modelGroup.updateMatrixWorld(true);
+        updateSkeletons();
+      } else {
+        box.setFromObject(modelGroup);
+      }
       const size = new THREE.Vector3();
       box.getSize(size);
       const maxDimension = Math.max(size.x, size.y, size.z);
@@ -218,9 +255,14 @@ export default function ModelPreview({
       controls.update();
 
       // Render loop
+      const clock = new THREE.Clock();
       const animate = () => {
         if (isCancelled) return;
         animationIdRef.current = requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        if (mixer) {
+          mixer.update(delta);
+        }
         controls.update();
         renderer.render(scene, camera);
       };
