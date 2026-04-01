@@ -23,6 +23,12 @@ export async function POST(request) {
   try {
     // Fetch GLB from Vercel Blob
     const response = await fetch(url);
+    if (!response.ok) {
+      return Response.json(
+        { error: `Failed to fetch from blob: ${response.status} ${response.statusText}` },
+        { status: 500 }
+      );
+    }
     const buffer = await response.arrayBuffer();
 
     // Setup gltf-transform IO

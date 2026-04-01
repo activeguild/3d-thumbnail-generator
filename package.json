@@ -31,8 +31,5 @@
     "sharp": "^0.34.5",
     "three": "^0.160.0",
     "upng-js": "^2.1.0"
-  },
-  "devDependencies": {
-    "copy-webpack-plugin": "^14.0.0"
   }
 }

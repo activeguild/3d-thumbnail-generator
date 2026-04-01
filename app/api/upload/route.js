@@ -10,7 +10,7 @@ export async function POST(request) {
       request,
       onBeforeGenerateToken: async () => {
         return {
-          allowedContentTypes: ['model/gltf-binary'],
+          allowedContentTypes: ['model/gltf-binary', 'application/octet-stream'],
         };
       },
       onUploadCompleted: async () => {},
