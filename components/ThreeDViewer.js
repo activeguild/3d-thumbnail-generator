@@ -411,12 +411,12 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         camera.position.copy(camPos);
         camera.lookAt(0, 0, 0);
 
-        const { zoom = 1.0 } = cameraParams || {};
+        const { zoom = 1.0, offsetX = 0, offsetY = 0 } = cameraParams || {};
         camera.zoom = zoom;
-        camera.left = -canvasSize / 2;
-        camera.right = canvasSize / 2;
-        camera.top = canvasSize / 2;
-        camera.bottom = -canvasSize / 2;
+        camera.left = -canvasSize / 2 + offsetX;
+        camera.right = canvasSize / 2 + offsetX;
+        camera.top = canvasSize / 2 - offsetY;
+        camera.bottom = -canvasSize / 2 - offsetY;
         camera.updateProjectionMatrix();
 
         // Reset animation if present
@@ -532,7 +532,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [file, backgroundColor, backgroundConfig?.gradient, backgroundConfig?.color1, backgroundConfig?.color2, backgroundConfig?.angle, onComplete, onError, cameraParams?.horizontalAngle, cameraParams?.verticalAngle, cameraParams?.zoom]);
+  }, [file, backgroundColor, backgroundConfig?.gradient, backgroundConfig?.color1, backgroundConfig?.color2, backgroundConfig?.angle, onComplete, onError, cameraParams?.horizontalAngle, cameraParams?.verticalAngle, cameraParams?.zoom, cameraParams?.offsetX, cameraParams?.offsetY]);
 
   const getStatusMessage = () => {
     switch (status) {

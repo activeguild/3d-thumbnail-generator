@@ -15,7 +15,7 @@ const CameraDrawer = dynamic(() => import('@/components/CameraDrawer'), {
   loading: () => null,
 });
 
-const DEFAULT_CAMERA = { horizontalAngle: 45, verticalAngle: 45, zoom: 1.0 };
+const DEFAULT_CAMERA = { horizontalAngle: 45, verticalAngle: 45, zoom: 1.0, offsetX: 0, offsetY: 0 };
 
 export default function ThumbnailGenerator() {
   // items: [{ file, fileName, blob, thumbnailUrl, cameraParams, isAnimated, processing }]
@@ -423,8 +423,7 @@ export default function ThumbnailGenerator() {
                 <div className={styles.fileInfo}>
                   <div className={styles.fileName}>{item.fileName}</div>
                   <div className={styles.cameraInfo}>
-                    H:{item.cameraParams.horizontalAngle}° V:{item.cameraParams.verticalAngle}° Z:
-                    {item.cameraParams.zoom.toFixed(1)}x
+                    H:{item.cameraParams.horizontalAngle}° V:{item.cameraParams.verticalAngle}° Z:{item.cameraParams.zoom.toFixed(1)}x X:{item.cameraParams.offsetX || 0} Y:{item.cameraParams.offsetY || 0}
                   </div>
                 </div>
                 <button

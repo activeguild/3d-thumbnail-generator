@@ -44,16 +44,23 @@ export default function ModelPreview({
     const controls = controlsRef.current;
     if (!camera || !controls) return;
 
-    const { horizontalAngle = 45, verticalAngle = 45, zoom = 1.0 } = params;
+    const { horizontalAngle = 45, verticalAngle = 45, zoom = 1.0, offsetX = 0, offsetY = 0 } = params;
     const hRad = (horizontalAngle * Math.PI) / 180;
     const vRad = (verticalAngle * Math.PI) / 180;
     const distance = baseDistanceRef.current;
+    const canvasSize = 300;
     camera.position.set(
       distance * Math.cos(vRad) * Math.sin(hRad),
       distance * Math.sin(vRad),
       distance * Math.cos(vRad) * Math.cos(hRad)
     );
     camera.zoom = zoom;
+    const scaledOffsetX = offsetX * (canvasSize / 512);
+    const scaledOffsetY = offsetY * (canvasSize / 512);
+    camera.left = -canvasSize / 2 + scaledOffsetX;
+    camera.right = canvasSize / 2 + scaledOffsetX;
+    camera.top = canvasSize / 2 - scaledOffsetY;
+    camera.bottom = -canvasSize / 2 - scaledOffsetY;
     camera.updateProjectionMatrix();
     camera.lookAt(0, 0, 0);
     controls.update();

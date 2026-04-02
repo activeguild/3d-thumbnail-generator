@@ -108,6 +108,38 @@ export default function CameraDrawer({
 
           <div className={styles.sliderGroup}>
             <label className={styles.sliderLabel}>
+              Offset X
+              <span className={styles.sliderValue}>{(localParams.offsetX || 0).toFixed(0)}</span>
+            </label>
+            <input
+              type="range"
+              className={styles.slider}
+              min="-200"
+              max="200"
+              step="1"
+              value={localParams.offsetX || 0}
+              onChange={(e) => handleSliderChange('offsetX', Number(e.target.value))}
+            />
+          </div>
+
+          <div className={styles.sliderGroup}>
+            <label className={styles.sliderLabel}>
+              Offset Y
+              <span className={styles.sliderValue}>{(localParams.offsetY || 0).toFixed(0)}</span>
+            </label>
+            <input
+              type="range"
+              className={styles.slider}
+              min="-200"
+              max="200"
+              step="1"
+              value={localParams.offsetY || 0}
+              onChange={(e) => handleSliderChange('offsetY', Number(e.target.value))}
+            />
+          </div>
+
+          <div className={styles.sliderGroup}>
+            <label className={styles.sliderLabel}>
               Zoom
               <span className={styles.sliderValue}>{localParams.zoom.toFixed(1)}x</span>
             </label>
