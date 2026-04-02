@@ -7,7 +7,7 @@ import styles from './CameraDrawer.module.css';
 const ModelPreview = dynamic(() => import('@/components/ModelPreview'), {
   ssr: false,
   loading: () => (
-    <div style={{ width: 300, height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7fafc', borderRadius: '8px' }}>
+    <div style={{ width: 300, height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', borderRadius: '8px', color: '#94a3b8' }}>
       Loading preview...
     </div>
   ),
@@ -24,30 +24,39 @@ export default function CameraDrawer({
 }) {
   const [localParams, setLocalParams] = useState(cameraParams);
   const prevIsOpenRef = useRef(false);
-  const sliderActiveRef = useRef(false);
+  const ignorePreviewRef = useRef(false);
 
   // Sync localParams when drawer opens with new params
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
-      setLocalParams({
-        horizontalAngle: cameraParams.horizontalAngle,
-        verticalAngle: cameraParams.verticalAngle,
-        zoom: cameraParams.zoom,
-      });
+      setLocalParams({ ...cameraParams });
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, cameraParams.horizontalAngle, cameraParams.verticalAngle, cameraParams.zoom]);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close drawer when regeneration completes
+  const prevRegeneratingRef = useRef(false);
+  useEffect(() => {
+    if (prevRegeneratingRef.current && !regenerating) {
+      onClose();
+    }
+    prevRegeneratingRef.current = regenerating;
+  }, [regenerating, onClose]);
 
   const handlePreviewChange = useCallback((params) => {
-    if (sliderActiveRef.current) return;
-    setLocalParams((prev) => ({ ...prev, ...params }));
+    if (ignorePreviewRef.current) return;
+    setLocalParams((prev) => ({
+      ...prev,
+      horizontalAngle: params.horizontalAngle,
+      verticalAngle: params.verticalAngle,
+      zoom: params.zoom,
+    }));
   }, []);
 
   const handleSliderChange = useCallback((key, value) => {
-    sliderActiveRef.current = true;
+    ignorePreviewRef.current = true;
     setLocalParams((prev) => ({ ...prev, [key]: value }));
-    // Allow preview onChange to resume after a tick
-    requestAnimationFrame(() => { sliderActiveRef.current = false; });
+    setTimeout(() => { ignorePreviewRef.current = false; }, 100);
   }, []);
 
   const handleRegenerate = () => {
@@ -114,7 +123,7 @@ export default function CameraDrawer({
           <div className={styles.sliderGroup}>
             <label className={styles.sliderLabel}>
               Offset X
-              <span className={styles.sliderValue}>{(localParams.offsetX || 0).toFixed(0)}</span>
+              <span className={styles.sliderValue}>{localParams.offsetX || 0}</span>
             </label>
             <input
               type="range"
@@ -130,7 +139,7 @@ export default function CameraDrawer({
           <div className={styles.sliderGroup}>
             <label className={styles.sliderLabel}>
               Offset Y
-              <span className={styles.sliderValue}>{(localParams.offsetY || 0).toFixed(0)}</span>
+              <span className={styles.sliderValue}>{localParams.offsetY || 0}</span>
             </label>
             <input
               type="range"
@@ -164,7 +173,14 @@ export default function CameraDrawer({
             onClick={handleRegenerate}
             disabled={regenerating}
           >
-            {regenerating ? 'Regenerating...' : 'Regenerate with this angle'}
+            {regenerating ? (
+              <span className={styles.regeneratingContent}>
+                <span className={styles.regeneratingSpinner} />
+                Regenerating...
+              </span>
+            ) : (
+              'Regenerate with this angle'
+            )}
           </button>
         </div>
       </div>

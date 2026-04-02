@@ -167,7 +167,6 @@ export default function ThumbnailGenerator() {
         return updated;
       });
       setRegenerateKey((k) => k + 1);
-      setDrawerOpen(false);
     },
     [selectedIndex]
   );
