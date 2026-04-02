@@ -24,6 +24,7 @@ export default function CameraDrawer({
 }) {
   const [localParams, setLocalParams] = useState(cameraParams);
   const prevIsOpenRef = useRef(false);
+  const sliderActiveRef = useRef(false);
 
   // Sync localParams when drawer opens with new params
   useEffect(() => {
@@ -38,11 +39,15 @@ export default function CameraDrawer({
   }, [isOpen, cameraParams.horizontalAngle, cameraParams.verticalAngle, cameraParams.zoom]);
 
   const handlePreviewChange = useCallback((params) => {
+    if (sliderActiveRef.current) return;
     setLocalParams((prev) => ({ ...prev, ...params }));
   }, []);
 
   const handleSliderChange = useCallback((key, value) => {
+    sliderActiveRef.current = true;
     setLocalParams((prev) => ({ ...prev, [key]: value }));
+    // Allow preview onChange to resume after a tick
+    requestAnimationFrame(() => { sliderActiveRef.current = false; });
   }, []);
 
   const handleRegenerate = () => {
