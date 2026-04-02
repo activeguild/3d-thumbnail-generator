@@ -38,7 +38,7 @@ export default function CameraDrawer({
   }, [isOpen, cameraParams.horizontalAngle, cameraParams.verticalAngle, cameraParams.zoom]);
 
   const handlePreviewChange = useCallback((params) => {
-    setLocalParams(params);
+    setLocalParams((prev) => ({ ...prev, ...params }));
   }, []);
 
   const handleSliderChange = useCallback((key, value) => {
