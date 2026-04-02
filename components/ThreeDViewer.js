@@ -375,6 +375,10 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
           modelGroup.updateMatrixWorld(true);
           updateSkeletons();
         } else {
+          // For skinned meshes without animation, still need skeleton.update()
+          // to get correct bounding box (bind-pose can differ from rest pose)
+          modelGroup.updateMatrixWorld(true);
+          updateSkeletons();
           box.setFromObject(modelGroup);
         }
 
