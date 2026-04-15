@@ -71,6 +71,59 @@
   transform: translateY(-2px);
 }
 
+.seekBarContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 1400px;
+  margin-bottom: 1.5rem;
+  padding: 0 0.5rem;
+}
+
+.seekBar {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #2d3748;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.seekBar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #818cf8;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.seekBar::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.seekBar::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #818cf8;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+.seekTime {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5em;
+  text-align: center;
+}
+
 .viewersRow {
   display: flex;
   gap: 1.5rem;
