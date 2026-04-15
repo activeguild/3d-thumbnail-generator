@@ -84,7 +84,7 @@ function getModelStats(gltf) {
   };
 }
 
-function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clockRef, isPlaying, onControlsChange, syncData }) {
+function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clockRef, isPlaying, seekTime, onTimeUpdate, onControlsChange, syncData }) {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
@@ -93,6 +93,11 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
   const animationIdRef = useRef(null);
   const modelRef = useRef(null);
   const isSyncingRef = useRef(false);
+  const isPlayingRef = useRef(isPlaying);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+  useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
 
   // Apply sync data from other viewer
   useEffect(() => {
@@ -201,8 +206,11 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
             gltf.animations.forEach(clip => {
               const action = mixer.clipAction(clip);
               action.play();
-              action.paused = !isPlaying;
+              action.paused = true;
             });
+            mixer.setTime(0);
+            // Consume any elapsed clock time so it doesn't jump on first play
+            if (clockRef.current) clockRef.current.getDelta();
           }
 
           // Get stats
@@ -223,7 +231,16 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
         animationIdRef.current = animationId;
 
         if (mixerRef.current && clockRef.current) {
-          mixerRef.current.update(clockRef.current.getDelta());
+          const delta = clockRef.current.getDelta();
+          if (isPlayingRef.current) {
+            mixerRef.current.update(delta);
+            if (onTimeUpdateRef.current) {
+              const actions = mixerRef.current._actions;
+              const duration = actions.length > 0 ? actions[0]._clip.duration : 0;
+              const time = duration > 0 ? mixerRef.current.time % duration : 0;
+              onTimeUpdateRef.current(time);
+            }
+          }
         }
 
         controls.update();
@@ -272,6 +289,20 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
       });
     }
   }, [isPlaying]);
+
+  // Handle seek
+  useEffect(() => {
+    if (seekTime && mixerRef.current) {
+      const mixer = mixerRef.current;
+      const t = seekTime.time;
+      mixer._actions.forEach(action => {
+        action.time = t;
+        action.paused = true;
+      });
+      mixer.time = t;
+      mixer.update(0);
+    }
+  }, [seekTime]);
 
   return (
     <div className={styles.viewerContainer}>
@@ -333,6 +364,8 @@ export default function GLBCompare() {
   const [stats1, setStats1] = useState(null);
   const [stats2, setStats2] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [seekTime, setSeekTime] = useState(null);
   const [dragActive1, setDragActive1] = useState(false);
   const [dragActive2, setDragActive2] = useState(false);
   const [syncData1, setSyncData1] = useState(null); // Data to sync viewer 1
@@ -394,6 +427,18 @@ export default function GLBCompare() {
     }
   };
 
+  const handleTimeUpdate = useCallback((time) => {
+    setCurrentTime(time);
+  }, []);
+
+  const seekIdRef = useRef(0);
+  const handleSeek = useCallback((e) => {
+    const time = parseFloat(e.target.value);
+    seekIdRef.current += 1;
+    setSeekTime({ time, id: seekIdRef.current });
+    setCurrentTime(time);
+  }, []);
+
   const togglePlayPause = useCallback(() => {
     setIsPlaying(prev => !prev);
 
@@ -410,6 +455,8 @@ export default function GLBCompare() {
     setStats1(null);
     setStats2(null);
     setIsPlaying(false);
+    setCurrentTime(0);
+    setSeekTime({ time: 0, id: -1 });
     mixer1Ref.current = null;
     mixer2Ref.current = null;
   };
@@ -528,6 +575,28 @@ export default function GLBCompare() {
         </div>
       )}
 
+      {(stats1?.animationCount > 0 || stats2?.animationCount > 0) && (() => {
+        const duration = Math.max(
+          stats1?.animations?.[0] ? parseFloat(stats1.animations[0].duration) : 0,
+          stats2?.animations?.[0] ? parseFloat(stats2.animations[0].duration) : 0
+        );
+        return duration > 0 ? (
+          <div className={styles.seekBarContainer}>
+            <span className={styles.seekTime}>{currentTime.toFixed(2)}s</span>
+            <input
+              type="range"
+              min={0}
+              max={duration}
+              step={0.01}
+              value={currentTime % (duration + 0.001)}
+              onChange={handleSeek}
+              className={styles.seekBar}
+            />
+            <span className={styles.seekTime}>{duration.toFixed(2)}s</span>
+          </div>
+        ) : null;
+      })()}
+
       <div className={styles.viewersRow}>
         <div className={styles.viewerWrapper}>
           {!file1 ? (
@@ -542,6 +611,8 @@ export default function GLBCompare() {
               mixerRef={mixer1Ref}
               clockRef={clock1Ref}
               isPlaying={isPlaying}
+              seekTime={seekTime}
+              onTimeUpdate={handleTimeUpdate}
               onControlsChange={handleControls1Change}
               syncData={syncData1}
             />
@@ -561,6 +632,8 @@ export default function GLBCompare() {
               mixerRef={mixer2Ref}
               clockRef={clock2Ref}
               isPlaying={isPlaying}
+              seekTime={seekTime}
+              onTimeUpdate={null}
               onControlsChange={handleControls2Change}
               syncData={syncData2}
             />
