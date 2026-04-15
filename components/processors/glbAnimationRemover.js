@@ -1,145 +1,67 @@
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
+import { WebIO } from '@gltf-transform/core';
+import { resample, prune } from '@gltf-transform/functions';
 
-function createLoader() {
-  const loader = new GLTFLoader();
-  const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/');
-  loader.setDRACOLoader(dracoLoader);
-  return loader;
-}
-
-function exportToGLB(scene, animations = []) {
-  return new Promise((resolve, reject) => {
-    const exporter = new GLTFExporter();
-    exporter.parse(
-      scene,
-      (result) => {
-        const blob = new Blob([result], { type: 'model/gltf-binary' });
-        resolve(blob);
-      },
-      (error) => {
-        reject(new Error('Failed to export GLB: ' + error.message));
-      },
-      { binary: true, animations }
-    );
-  });
+/**
+ * Read a File into a glTF-Transform Document via WebIO.
+ */
+async function readDocument(file) {
+  const buffer = await file.arrayBuffer();
+  const io = new WebIO();
+  return io.readBinary(new Uint8Array(buffer));
 }
 
 /**
- * Remove animations from a GLB file
+ * Write a glTF-Transform Document back to a GLB Blob.
+ */
+async function writeGLB(document) {
+  const io = new WebIO();
+  const glb = await io.writeBinary(document);
+  return new Blob([glb], { type: 'model/gltf-binary' });
+}
+
+/**
+ * Remove animations from a GLB file.
+ * Uses gltf-transform to preserve the original glTF structure.
  * @param {File} file - Input GLB file
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
 export async function removeAnimationsFromGLB(file) {
-  return new Promise((resolve, reject) => {
-    const loader = createLoader();
-    const fileUrl = URL.createObjectURL(file);
+  const document = await readDocument(file);
 
-    loader.load(
-      fileUrl,
-      async (gltf) => {
-        URL.revokeObjectURL(fileUrl);
-        try {
-          const blob = await exportToGLB(gltf.scene, []);
-          resolve(blob);
-        } catch (error) {
-          reject(error);
-        }
-      },
-      undefined,
-      (error) => {
-        URL.revokeObjectURL(fileUrl);
-        reject(new Error('Failed to load GLB: ' + error.message));
-      }
-    );
-  });
+  // Remove all animations
+  for (const animation of document.getRoot().listAnimations()) {
+    animation.dispose();
+  }
+
+  await document.transform(prune());
+  return writeGLB(document);
 }
 
 /**
- * Decimate keyframes in animation tracks
- * @param {THREE.KeyframeTrack} track - Animation track
- * @param {number} ratio - Keep ratio (0.5 = keep 50% of keyframes)
- * @returns {THREE.KeyframeTrack} - Decimated track
- */
-function decimateTrack(track, ratio) {
-  const times = track.times;
-  const values = track.values;
-  const valueSize = values.length / times.length;
-
-  if (times.length <= 2) {
-    return track;
-  }
-
-  const step = Math.max(1, Math.round(1 / ratio));
-  const newTimes = [];
-  const newValues = [];
-
-  for (let i = 0; i < times.length; i++) {
-    const isFirst = i === 0;
-    const isLast = i === times.length - 1;
-    const isSelected = i % step === 0;
-
-    if (isFirst || isLast || isSelected) {
-      newTimes.push(times[i]);
-      for (let j = 0; j < valueSize; j++) {
-        newValues.push(values[i * valueSize + j]);
-      }
-    }
-  }
-
-  const TrackConstructor = track.constructor;
-  return new TrackConstructor(
-    track.name,
-    new Float32Array(newTimes),
-    new Float32Array(newValues),
-    track.getInterpolation()
-  );
-}
-
-/**
- * Decimate animations in a GLB file (reduce keyframes)
+ * Decimate animations in a GLB file using gltf-transform's resample.
+ * This preserves the original glTF structure (materials, hierarchy, etc.)
+ * which is required for correct USDZ conversion and iOS AR Quick Look.
  * @param {File} file - Input GLB file
  * @param {number} ratio - Keep ratio (0.5 = keep 50% of keyframes)
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
 export async function decimateAnimationsFromGLB(file, ratio = 0.5) {
-  return new Promise((resolve, reject) => {
-    const loader = createLoader();
-    const fileUrl = URL.createObjectURL(file);
+  const document = await readDocument(file);
 
-    loader.load(
-      fileUrl,
-      async (gltf) => {
-        URL.revokeObjectURL(fileUrl);
+  // tolerance controls how aggressively redundant keyframes are removed.
+  // Higher = more aggressive. Map ratio to tolerance:
+  // ratio 1.0 (keep all) → tolerance ~0, ratio 0.1 (keep 10%) → tolerance ~0.1
+  // ratio → tolerance mapping (quadratic for gentler control at high keep-ratios)
+  // ratio 1.0 → 0, ratio 0.5 → 0.0125, ratio 0.1 → 0.0405
+  const tolerance = (1 - ratio) ** 2 * 0.05;
 
-        try {
-          const decimatedAnimations = gltf.animations.map((clip) => {
-            const decimatedTracks = clip.tracks.map((track) =>
-              decimateTrack(track, ratio)
-            );
-            return new THREE.AnimationClip(clip.name, clip.duration, decimatedTracks);
-          });
-
-          const blob = await exportToGLB(gltf.scene, decimatedAnimations);
-          resolve(blob);
-        } catch (error) {
-          reject(error);
-        }
-      },
-      undefined,
-      (error) => {
-        URL.revokeObjectURL(fileUrl);
-        reject(new Error('Failed to load GLB: ' + error.message));
-      }
-    );
-  });
+  await document.transform(resample({ tolerance }));
+  return writeGLB(document);
 }
 
 /**
- * Process GLB file with options
+ * Process GLB file with options.
+ * Uses gltf-transform to preserve the original glTF structure.
  * @param {File} file - Input GLB file
  * @param {Object} options - Processing options
  * @param {boolean} options.removeAnimations - Remove all animations
@@ -154,40 +76,17 @@ export async function processGLB(file, options = {}) {
     decimateRatio = 0.5
   } = options;
 
-  return new Promise((resolve, reject) => {
-    const loader = createLoader();
-    const fileUrl = URL.createObjectURL(file);
+  const document = await readDocument(file);
 
-    loader.load(
-      fileUrl,
-      async (gltf) => {
-        URL.revokeObjectURL(fileUrl);
+  if (removeAnimations) {
+    for (const animation of document.getRoot().listAnimations()) {
+      animation.dispose();
+    }
+  } else if (decimateKeyframes) {
+    const tolerance = (1 - decimateRatio) ** 2 * 0.05;
+    await document.transform(resample({ tolerance }));
+  }
 
-        try {
-          let animations = gltf.animations;
-
-          if (removeAnimations) {
-            animations = [];
-          } else if (decimateKeyframes && animations.length > 0) {
-            animations = animations.map((clip) => {
-              const decimatedTracks = clip.tracks.map((track) =>
-                decimateTrack(track, decimateRatio)
-              );
-              return new THREE.AnimationClip(clip.name, clip.duration, decimatedTracks);
-            });
-          }
-
-          const blob = await exportToGLB(gltf.scene, animations);
-          resolve(blob);
-        } catch (error) {
-          reject(error);
-        }
-      },
-      undefined,
-      (error) => {
-        URL.revokeObjectURL(fileUrl);
-        reject(new Error('Failed to load GLB: ' + error.message));
-      }
-    );
-  });
+  await document.transform(prune());
+  return writeGLB(document);
 }
