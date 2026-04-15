@@ -300,12 +300,20 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
             <span className={styles.statValue}>{stats.animationCount}</span>
           </div>
           {stats.animations.length > 0 && (
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Keyframes</span>
-              <span className={styles.statValue}>
-                {stats.animations.reduce((sum, a) => sum + a.keyframes, 0).toLocaleString()}
-              </span>
-            </div>
+            <>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Duration</span>
+                <span className={styles.statValue}>
+                  {stats.animations[0].duration}s
+                </span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Keyframes</span>
+                <span className={styles.statValue}>
+                  {stats.animations.reduce((sum, a) => sum + a.keyframes, 0).toLocaleString()}
+                </span>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -443,6 +451,12 @@ export default function GLBCompare() {
       { label: 'Materials', value1: stats1.materialCount, value2: stats2.materialCount, format: (v) => v },
       { label: 'Textures', value1: stats1.textureCount, value2: stats2.textureCount, format: (v) => v },
       { label: 'Animations', value1: stats1.animationCount, value2: stats2.animationCount, format: (v) => v },
+      {
+        label: 'Duration',
+        value1: stats1.animations.length > 0 ? parseFloat(stats1.animations[0].duration) : 0,
+        value2: stats2.animations.length > 0 ? parseFloat(stats2.animations[0].duration) : 0,
+        format: (v) => v + 's'
+      },
       {
         label: 'Keyframes',
         value1: stats1.animations.reduce((sum, a) => sum + a.keyframes, 0),
