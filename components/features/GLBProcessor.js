@@ -23,6 +23,11 @@ export default function GLBProcessor() {
     decimateKeyframes: false,
     decimateRatio: 0.5,
     dracoCompress: false,
+    centerOrigin: false,
+    simplifyMesh: false,
+    simplifyRatio: 0.5,
+    decimateNodes: false,
+    decimateNodesRatio: 0.5,
   });
   const [expandedItems, setExpandedItems] = useState({});
   const [dracoStep, setDracoStep] = useState(null);
@@ -209,14 +214,21 @@ export default function GLBProcessor() {
     for (let i = 0; i < fileList.length; i++) {
       setCurrentIndex(i);
       try {
-        const needsThreeJsProcessing =
-          processingOptions.removeAnimations || processingOptions.decimateKeyframes;
+        const needsProcessing =
+          processingOptions.removeAnimations || processingOptions.decimateKeyframes ||
+          processingOptions.centerOrigin || processingOptions.simplifyMesh ||
+          processingOptions.decimateNodes;
 
-        let processedBlob = needsThreeJsProcessing
+        let processedBlob = needsProcessing
           ? await processGLB(fileList[i], {
               removeAnimations: processingOptions.removeAnimations,
               decimateKeyframes: processingOptions.decimateKeyframes,
               decimateRatio: processingOptions.decimateRatio,
+              centerOrigin: processingOptions.centerOrigin,
+              simplifyMesh: processingOptions.simplifyMesh,
+              simplifyRatio: processingOptions.simplifyRatio,
+              decimateNodes: processingOptions.decimateNodes,
+              decimateNodesRatio: processingOptions.decimateNodesRatio,
             })
           : fileList[i];
 
@@ -580,6 +592,84 @@ export default function GLBProcessor() {
               </span>
             </div>
           )}
+          <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.centerOrigin}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                centerOrigin: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Center Origin (0, 0, 0)</span>
+          </label>
+          <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.decimateNodes}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                decimateNodes: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Decimate Nodes</span>
+          </label>
+          {processingOptions.decimateNodes && (
+            <div className={styles.sliderContainer}>
+              <label className={styles.sliderLabel}>
+                <span>Keep Ratio: {Math.round(processingOptions.decimateNodesRatio * 100)}%</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="90"
+                  value={processingOptions.decimateNodesRatio * 100}
+                  onChange={(e) => setProcessingOptions(prev => ({
+                    ...prev,
+                    decimateNodesRatio: parseInt(e.target.value) / 100
+                  }))}
+                  className={styles.slider}
+                />
+              </label>
+              <span className={styles.sliderHint}>
+                Lower = fewer particles (50% keeps half the nodes)
+              </span>
+            </div>
+          )}
+          {/* <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.simplifyMesh}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                simplifyMesh: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Simplify Mesh</span>
+          </label>
+          {processingOptions.simplifyMesh && (
+            <div className={styles.sliderContainer}>
+              <label className={styles.sliderLabel}>
+                <span>Target Ratio: {Math.round(processingOptions.simplifyRatio * 100)}%</span>
+                <input
+                  type="range"
+                  min="5"
+                  max="95"
+                  value={processingOptions.simplifyRatio * 100}
+                  onChange={(e) => setProcessingOptions(prev => ({
+                    ...prev,
+                    simplifyRatio: parseInt(e.target.value) / 100
+                  }))}
+                  className={styles.slider}
+                />
+              </label>
+              <span className={styles.sliderHint}>
+                Lower = more reduction (50% aims for half the triangles)
+              </span>
+            </div>
+          )} */}
           <label className={styles.optionLabel}>
             <input
               type="checkbox"

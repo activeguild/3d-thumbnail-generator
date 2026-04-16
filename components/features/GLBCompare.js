@@ -18,15 +18,17 @@ function createLoader() {
 function getModelStats(gltf) {
   let triangles = 0;
   let vertices = 0;
-  let meshCount = 0;
+  let nodeCount = 0;
   let pointsCount = 0;
+  let uniqueMeshes = new Set();
   let materialCount = new Set();
   let textureCount = new Set();
 
   gltf.scene.traverse((child) => {
     // Handle regular meshes
     if (child.isMesh) {
-      meshCount++;
+      nodeCount++;
+      uniqueMeshes.add(child.geometry.uuid);
       const geometry = child.geometry;
 
       if (geometry.index) {
@@ -75,7 +77,8 @@ function getModelStats(gltf) {
   return {
     triangles: Math.round(triangles),
     vertices,
-    meshCount,
+    meshCount: uniqueMeshes.size,
+    nodeCount,
     pointsCount,
     materialCount: materialCount.size,
     textureCount: textureCount.size,
@@ -327,6 +330,10 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
             <span className={styles.statValue}>{stats.meshCount}</span>
           </div>
           <div className={styles.statItem}>
+            <span className={styles.statLabel}>Nodes</span>
+            <span className={styles.statValue}>{stats.nodeCount}</span>
+          </div>
+          <div className={styles.statItem}>
             <span className={styles.statLabel}>Animations</span>
             <span className={styles.statValue}>{stats.animationCount}</span>
           </div>
@@ -495,6 +502,7 @@ export default function GLBCompare() {
       { label: 'Triangles', value1: stats1.triangles, value2: stats2.triangles, format: (v) => v.toLocaleString() },
       { label: 'Vertices', value1: stats1.vertices, value2: stats2.vertices, format: (v) => v.toLocaleString() },
       { label: 'Meshes', value1: stats1.meshCount, value2: stats2.meshCount, format: (v) => v },
+      { label: 'Nodes', value1: stats1.nodeCount, value2: stats2.nodeCount, format: (v) => v },
       { label: 'Materials', value1: stats1.materialCount, value2: stats2.materialCount, format: (v) => v },
       { label: 'Textures', value1: stats1.textureCount, value2: stats2.textureCount, format: (v) => v },
       { label: 'Animations', value1: stats1.animationCount, value2: stats2.animationCount, format: (v) => v },
