@@ -107,4 +107,4 @@ npm run dev
 
 ## License
 
-ISC
+MIT

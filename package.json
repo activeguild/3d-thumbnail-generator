@@ -12,7 +12,7 @@
     "batch": "node list.cjs"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "",
   "dependencies": {
     "@gltf-transform/core": "^4.3.0",
