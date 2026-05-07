@@ -51,7 +51,7 @@ export async function POST(request) {
 
     await document.transform(
       resample(),
-      prune(),
+      prune({keepAttributes: false}),
       dedup(),
       ...(hasMorphAnimation ? [] : [draco()]),
       textureCompress({
