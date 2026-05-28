@@ -16,14 +16,20 @@ const GLBCompare = dynamic(() => import('@/components/features/GLBCompare'), {
   loading: () => <p style={{color: 'white'}}>Loading GLB Compare...</p>
 });
 
+const TemplateViewer = dynamic(() => import('@/components/features/TemplateViewer'), {
+  ssr: false,
+  loading: () => <p style={{color: 'white'}}>Loading Template Viewer...</p>
+});
+
 export default function Home() {
-  const [activeFeature, setActiveFeature] = useState('thumbnail');
+  const [activeFeature, setActiveFeature] = useState('thumbnail-asset');
 
   return (
     <div className={styles.appContainer}>
       <Sidebar activeFeature={activeFeature} onFeatureChange={setActiveFeature} />
       <main className={styles.mainContent}>
-        {activeFeature === 'thumbnail' && <ThumbnailGenerator />}
+        {activeFeature === 'thumbnail-asset' && <ThumbnailGenerator />}
+        {activeFeature === 'thumbnail-template' && <TemplateViewer />}
         {activeFeature === 'glb-processor' && <GLBProcessor />}
         {activeFeature === 'glb-compare' && <GLBCompare />}
       </main>
