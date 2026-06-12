@@ -395,19 +395,16 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         box.getCenter(center);
 
         loadedModel.position.sub(center);
-        modelGroup.position.x -= center.x;
-        modelGroup.position.z -= center.z;
 
-        modelGroup.position.y -= center.y / 2;
-
+        // Recalculate bounding box after centering to get accurate Y placement
         const scaledBox = new THREE.Box3().setFromObject(modelGroup);
-        const scaledSize = new THREE.Vector3();
-        scaledBox.getSize(scaledSize);
-        const yCorrection = (scaledSize.y - size.y * scaleFactor) / 2;
+        const scaledMin = scaledBox.min.y;
+        // Shift model up so its bottom sits at y=0, then offset down by half height
+        // This places the visual center at y=0 for the camera
+        modelGroup.position.y -= (scaledBox.max.y + scaledMin) / 2;
 
-        modelGroup.position.y += yCorrection;
-
-        const camPos = calcCameraPosition(maxDimension, cameraParams);
+        const scaledMaxDimension = maxDimension * scaleFactor;
+        const camPos = calcCameraPosition(scaledMaxDimension, cameraParams);
         camera.position.copy(camPos);
         camera.lookAt(0, 0, 0);
 
@@ -417,6 +414,10 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         camera.right = canvasSize / 2 + offsetX;
         camera.top = canvasSize / 2 - offsetY;
         camera.bottom = -canvasSize / 2 - offsetY;
+        // Ensure near/far planes cover the camera-to-model distance
+        const camDistance = camPos.length();
+        camera.near = -camDistance * 2;
+        camera.far = camDistance * 2;
         camera.updateProjectionMatrix();
 
         // Reset animation if present
@@ -433,10 +434,14 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
         setStatus('rendering');
 
         if (hasAnimations) {
-          // Generate APNG
-          const totalFrames = 30;
+          // Generate APNG covering the full animation duration
+          const clip = gltf.animations[0];
+          const duration = clip.duration;
           const fps = 30;
+          const maxFrames = 120; // Cap at 4 seconds worth of frames
+          const totalFrames = Math.min(maxFrames, Math.max(1, Math.round(duration * fps)));
           const frameDelay = 1000 / fps;
+          const dt = duration / totalFrames;
 
           mixer.setTime(0);
 
@@ -451,7 +456,7 @@ export default function ThreeDViewer({ file, backgroundColor = '#F2F6FF', backgr
 
           for (let i = 0; i < totalFrames; i++) {
             if (mixer) {
-              mixer.update(1 / fps);
+              mixer.update(dt);
             }
 
             renderer.render(scene, camera);

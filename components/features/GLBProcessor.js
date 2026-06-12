@@ -40,6 +40,34 @@ export default function GLBProcessor() {
     });
   }, []);
 
+  const countDrawCalls = (uint8Array) => {
+    try {
+      const view = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+      const jsonLen = view.getUint32(12, true);
+      const jsonStr = new TextDecoder().decode(uint8Array.slice(20, 20 + jsonLen));
+      const json = JSON.parse(jsonStr);
+
+      const nodes = json.nodes || [];
+      const meshes = json.meshes || [];
+      const meshRefCount = new Map();
+
+      for (const node of nodes) {
+        if (node.mesh !== undefined) {
+          meshRefCount.set(node.mesh, (meshRefCount.get(node.mesh) || 0) + 1);
+        }
+      }
+
+      let total = 0;
+      for (const [meshIdx, refCount] of meshRefCount) {
+        const primCount = meshes[meshIdx]?.primitives?.length || 1;
+        total += refCount * primCount;
+      }
+      return total;
+    } catch {
+      return null;
+    }
+  };
+
   const validateGLBFile = async (file) => {
     if (!validator) {
       return {
@@ -60,7 +88,8 @@ export default function GLBProcessor() {
         mimeType: report.mimeType,
         validatorVersion: report.validatorVersion,
         issues: report.issues,
-        info: report.info
+        info: report.info,
+        drawCalls: countDrawCalls(uint8Array)
       };
     } catch (err) {
       return {
@@ -450,10 +479,15 @@ export default function GLBProcessor() {
                       </div>
                     </div>
 
-                    {result.info && (
+                    {(result.info || result.drawCalls != null) && (
                       <div className={styles.modelInfo}>
-                        <span>Generator: {result.info.generator || 'Unknown'}</span>
-                        {result.info.version && <span>glTF {result.info.version}</span>}
+                        {result.info && <span>Generator: {result.info.generator || 'Unknown'}</span>}
+                        {result.info?.version && <span>glTF {result.info.version}</span>}
+                        {result.drawCalls != null && (
+                          <span className={styles.drawCallInfo}>
+                            Draw Calls: <strong>{result.drawCalls}</strong>/frame
+                          </span>
+                        )}
                       </div>
                     )}
 

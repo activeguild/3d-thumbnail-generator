@@ -467,6 +467,15 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 0.85rem;
   color: #64748b;
+  flex-wrap: wrap;
+}
+
+.drawCallInfo {
+  color: #818cf8;
+}
+
+.drawCallInfo strong {
+  color: #e2e8f0;
 }
 
 .messageList {

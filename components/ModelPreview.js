@@ -227,18 +227,14 @@ export default function ModelPreview({
       const center = new THREE.Vector3();
       box.getCenter(center);
       loadedModel.position.sub(center);
-      modelGroup.position.x -= center.x;
-      modelGroup.position.z -= center.z;
-      modelGroup.position.y -= center.y / 2;
 
+      // Recalculate bounding box after centering to get accurate Y placement
       const scaledBox = new THREE.Box3().setFromObject(modelGroup);
-      const scaledSize = new THREE.Vector3();
-      scaledBox.getSize(scaledSize);
-      const yCorrection = (scaledSize.y - size.y * scaleFactor) / 2;
-      modelGroup.position.y += yCorrection;
+      modelGroup.position.y -= (scaledBox.max.y + scaledBox.min.y) / 2;
 
-      // Base distance for zoom calculation
-      baseDistanceRef.current = maxDimension * 1.5;
+      // Base distance for zoom calculation (use scaled dimension)
+      const scaledMaxDimension = maxDimension * scaleFactor;
+      baseDistanceRef.current = scaledMaxDimension * 1.5;
 
       // Set initial camera from params
       const initParams = cameraParams || { horizontalAngle: 45, verticalAngle: 45, zoom: 1.0 };
@@ -257,6 +253,9 @@ export default function ModelPreview({
       camera.right = canvasSize / 2;
       camera.top = canvasSize / 2;
       camera.bottom = -canvasSize / 2;
+      const camDist = camera.position.length();
+      camera.near = -camDist * 2;
+      camera.far = camDist * 2;
       camera.updateProjectionMatrix();
 
       controls.update();
