@@ -28,6 +28,7 @@ export default function GLBProcessor() {
     simplifyRatio: 0.5,
     decimateNodes: false,
     decimateNodesRatio: 0.5,
+    joinMeshes: false,
   });
   const [expandedItems, setExpandedItems] = useState({});
   const [dracoStep, setDracoStep] = useState(null);
@@ -246,7 +247,7 @@ export default function GLBProcessor() {
         const needsProcessing =
           processingOptions.removeAnimations || processingOptions.decimateKeyframes ||
           processingOptions.centerOrigin || processingOptions.simplifyMesh ||
-          processingOptions.decimateNodes;
+          processingOptions.decimateNodes || processingOptions.joinMeshes;
 
         let processedBlob = needsProcessing
           ? await processGLB(fileList[i], {
@@ -258,6 +259,7 @@ export default function GLBProcessor() {
               simplifyRatio: processingOptions.simplifyRatio,
               decimateNodes: processingOptions.decimateNodes,
               decimateNodesRatio: processingOptions.decimateNodesRatio,
+              joinMeshes: processingOptions.joinMeshes,
             })
           : fileList[i];
 
@@ -671,6 +673,18 @@ export default function GLBProcessor() {
               </span>
             </div>
           )}
+          <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.joinMeshes}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                joinMeshes: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Join Meshes (same material)</span>
+          </label>
           {/* <label className={styles.optionLabel}>
             <input
               type="checkbox"

@@ -1,13 +1,34 @@
 import { WebIO } from '@gltf-transform/core';
-import { resample, prune, getBounds, simplify, weld } from '@gltf-transform/functions';
+import { KHRDracoMeshCompression } from '@gltf-transform/extensions';
+import { resample, prune, getBounds, simplify, weld, dedup, flatten, join } from '@gltf-transform/functions';
+import { PropertyType } from '@gltf-transform/core';
 import { MeshoptSimplifier } from 'meshoptimizer';
+import draco3d from 'draco3dgltf';
+
+let _io = null;
+
+async function getIO() {
+  if (!_io) {
+    const [decoderModule, encoderModule] = await Promise.all([
+      draco3d.createDecoderModule({ locateFile: (f) => `/draco/${f}` }),
+      draco3d.createEncoderModule({ locateFile: (f) => `/draco/${f}` }),
+    ]);
+    _io = new WebIO()
+      .registerExtensions([KHRDracoMeshCompression])
+      .registerDependencies({
+        'draco3d.decoder': decoderModule,
+        'draco3d.encoder': encoderModule,
+      });
+  }
+  return _io;
+}
 
 /**
  * Read a File into a glTF-Transform Document via WebIO.
  */
 async function readDocument(file) {
   const buffer = await file.arrayBuffer();
-  const io = new WebIO();
+  const io = await getIO();
   return await io.readBinary(new Uint8Array(buffer));
 }
 
@@ -15,7 +36,7 @@ async function readDocument(file) {
  * Write a glTF-Transform Document back to a GLB Blob.
  */
 async function writeGLB(document) {
-  const io = new WebIO();
+  const io = await getIO();
   const glb = await io.writeBinary(document);
   return new Blob([glb], { type: 'model/gltf-binary' });
 }
@@ -163,6 +184,7 @@ function decimateNodes(document, ratio) {
  * @param {number} options.simplifyRatio - Target ratio for mesh simplification (0.5 = 50%)
  * @param {boolean} options.decimateNodes - Reduce number of nodes
  * @param {number} options.decimateNodesRatio - Keep ratio for node decimation (0.5 = 50%)
+ * @param {boolean} options.joinMeshes - Join meshes with same material to reduce draw calls
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
 export async function processGLB(file, options = {}) {
@@ -175,6 +197,7 @@ export async function processGLB(file, options = {}) {
     simplifyRatio = 0.5,
     decimateNodes: shouldDecimateNodes = false,
     decimateNodesRatio = 0.5,
+    joinMeshes = false,
   } = options;
 
   const document = await readDocument(file);
@@ -201,6 +224,14 @@ export async function processGLB(file, options = {}) {
     await document.transform(
       weld(),
       simplify({ simplifier: MeshoptSimplifier, ratio: simplifyRatio, error: 0.01 })
+    );
+  }
+
+  if (joinMeshes) {
+    await document.transform(
+      dedup({ propertyTypes: [PropertyType.MATERIAL] }),
+      flatten(),
+      join(),
     );
   }
 
