@@ -12,9 +12,11 @@ Bulk-process GLB files with configurable optimization options:
 
 - **Animation removal/reduction** — strip or reduce keyframes with configurable algorithms
 - **Draco compression** — apply Draco mesh compression for smaller file sizes
+- **Mesh joining** — merge meshes sharing the same material to reduce draw calls
 - **Mesh simplification** — reduce polygon count with adjustable ratio
 - **Decimation** — reduce keyframes, nodes, and meshes
 - **Center origin** — align model origins automatically
+- **Draco-compressed GLB support** — read and write Draco-compressed models natively
 - **GLTF validation** — validate files against the glTF spec with detailed error/warning reports
 - **Batch download** — process multiple files and download as ZIP
 
@@ -100,9 +102,11 @@ GLBファイルを一括処理し、各種最適化オプションを適用で�
 
 - **アニメーション削除/削減** — キーフレームの除去・削減（アルゴリズム選択可）
 - **Draco圧縮** — Dracoメッシュ圧縮でファイルサイズを削減
+- **メッシュ結合** — 同一マテリアルのメッシュを結合してドローコールを削減
 - **メッシュ簡略化** — ポリゴン数を任意の比率で削減
 - **デシメーション** — キーフレーム・ノード・メッシュを削減
 - **原点中央化** — モデルの原点を自動で揃える
+- **Draco圧縮GLB対応** — Draco圧縮済みモデルの読み書きにネイティブ対応
 - **GLTFバリデーション** — glTF仕様に基づき検証し、エラー/警告を詳細にレポート
 - **一括ダウンロード** — 複数ファイルを処理してZIPで一括ダウンロード
 
