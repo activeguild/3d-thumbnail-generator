@@ -275,12 +275,6 @@ async function textureAtlas(document, maxSize = 2048) {
   // Filter materials eligible for atlasing
   const eligible = [];
   for (const mat of allMaterials) {
-    // Must have at least one texture
-    const hasTexture = TEXTURE_SLOTS.some(slot => mat[slot.get]() !== null);
-    if (!hasTexture) {
-      console.log(`textureAtlas: skipping material "${mat.getName()}" (no textures)`);
-      continue;
-    }
     // Must not use UV tiling
     if (hasUVTiling(document, mat)) {
       console.log(`textureAtlas: skipping material "${mat.getName()}" (UV tiling detected)`);
@@ -357,11 +351,13 @@ async function textureAtlas(document, maxSize = 2048) {
   console.log(`textureAtlas: packing ${eligible.length} materials into ${atlasWidth}x${atlasHeight} atlas (scale=${scale})`);
 
   // Create atlas textures for each slot
+  // For baseColor, always create an atlas (fill with baseColorFactor for textureless materials)
   const newTextures = {};
   for (const slot of TEXTURE_SLOTS) {
     const bitmaps = slotBitmaps[slot.get];
+    const isBaseColor = slot.get === 'getBaseColorTexture';
     const hasAny = bitmaps.some(b => b !== null);
-    if (!hasAny) continue;
+    if (!hasAny && !isBaseColor) continue;
 
     const canvas = typeof OffscreenCanvas !== 'undefined'
       ? new OffscreenCanvas(atlasWidth, atlasHeight)
@@ -382,6 +378,15 @@ async function textureAtlas(document, maxSize = 2048) {
       if (entry && entry.bitmap) {
         ctx.drawImage(entry.bitmap, region.x, region.y, region.width, region.height);
         entry.bitmap.close();
+      } else if (isBaseColor) {
+        // Fill with material's baseColorFactor for textureless materials
+        const factor = eligible[i].getBaseColorFactor();
+        const r = Math.round(factor[0] * 255);
+        const g = Math.round(factor[1] * 255);
+        const b = Math.round(factor[2] * 255);
+        const a = factor[3];
+        ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+        ctx.fillRect(region.x, region.y, region.width, region.height);
       }
     }
 
@@ -413,8 +418,28 @@ async function textureAtlas(document, maxSize = 2048) {
       const matIndex = eligible.indexOf(mat);
       if (matIndex === -1) continue;
 
-      const texcoord = prim.getAttribute('TEXCOORD_0');
-      if (!texcoord) continue;
+      const region = regions[matIndex];
+      let texcoord = prim.getAttribute('TEXCOORD_0');
+
+      if (!texcoord) {
+        // Create UV coordinates for primitives without TEXCOORD_0
+        // (e.g. solid-color materials). Point all vertices to the center of their atlas region.
+        const position = prim.getAttribute('POSITION');
+        if (!position) continue;
+        const vertexCount = position.getCount();
+        const centerU = (region.x + region.width * 0.5) / atlasWidth;
+        const centerV = (region.y + region.height * 0.5) / atlasHeight;
+        const uvData = new Float32Array(vertexCount * 2);
+        for (let i = 0; i < vertexCount; i++) {
+          uvData[i * 2] = centerU;
+          uvData[i * 2 + 1] = centerV;
+        }
+        const accessor = document.createAccessor('atlas_uv')
+          .setType('VEC2')
+          .setArray(uvData);
+        prim.setAttribute('TEXCOORD_0', accessor);
+        continue;
+      }
 
       // Clone accessor if shared with other primitives
       const users = texcoord.listParents().filter(p => p.propertyType !== 'Root');
@@ -424,7 +449,6 @@ async function textureAtlas(document, maxSize = 2048) {
         prim.setAttribute('TEXCOORD_0', accessor);
       }
 
-      const region = regions[matIndex];
       const count = accessor.getCount();
       const el = [0, 0];
       for (let i = 0; i < count; i++) {
