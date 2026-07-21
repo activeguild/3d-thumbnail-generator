@@ -200,7 +200,7 @@ async function decodeTexture(texture) {
  */
 function shelfPack(rects, maxSize) {
   // Sort by height descending for better packing
-  const sorted = rects.map((r, i) => ({ ...r, originalIndex: r.index }))
+  const sorted = rects.map((r) => ({ ...r, originalIndex: r.index }))
     .sort((a, b) => b.height - a.height);
 
   const regions = new Array(rects.length);
@@ -365,8 +365,8 @@ async function textureAtlas(document, maxSize = 2048) {
 
     const canvas = typeof OffscreenCanvas !== 'undefined'
       ? new OffscreenCanvas(atlasWidth, atlasHeight)
-      : document.createElement
-        ? document.createElement('canvas')
+      : typeof window !== 'undefined' && window.document
+        ? window.document.createElement('canvas')
         : null;
     if (!canvas) continue;
 
