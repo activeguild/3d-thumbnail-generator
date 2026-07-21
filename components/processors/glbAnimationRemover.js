@@ -1,5 +1,5 @@
 import { WebIO } from '@gltf-transform/core';
-import { KHRDracoMeshCompression } from '@gltf-transform/extensions';
+import { KHRDracoMeshCompression, EXTTextureWebP } from '@gltf-transform/extensions';
 import { resample, prune, getBounds, simplify, weld, dedup, flatten, join } from '@gltf-transform/functions';
 import { PropertyType } from '@gltf-transform/core';
 import { MeshoptSimplifier } from 'meshoptimizer';
@@ -14,7 +14,7 @@ async function getIO() {
       draco3d.createEncoderModule({ locateFile: (f) => `/draco/${f}` }),
     ]);
     _io = new WebIO()
-      .registerExtensions([KHRDracoMeshCompression])
+      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP])
       .registerDependencies({
         'draco3d.decoder': decoderModule,
         'draco3d.encoder': encoderModule,
