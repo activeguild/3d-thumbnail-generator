@@ -29,6 +29,7 @@ export default function GLBProcessor() {
     decimateNodes: false,
     decimateNodesRatio: 0.5,
     joinMeshes: false,
+    textureAtlas: false,
   });
   const [expandedItems, setExpandedItems] = useState({});
   const [dracoStep, setDracoStep] = useState(null);
@@ -247,7 +248,8 @@ export default function GLBProcessor() {
         const needsProcessing =
           processingOptions.removeAnimations || processingOptions.decimateKeyframes ||
           processingOptions.centerOrigin || processingOptions.simplifyMesh ||
-          processingOptions.decimateNodes || processingOptions.joinMeshes;
+          processingOptions.decimateNodes || processingOptions.joinMeshes ||
+          processingOptions.textureAtlas;
 
         let processedBlob = needsProcessing
           ? await processGLB(fileList[i], {
@@ -260,6 +262,7 @@ export default function GLBProcessor() {
               decimateNodes: processingOptions.decimateNodes,
               decimateNodesRatio: processingOptions.decimateNodesRatio,
               joinMeshes: processingOptions.joinMeshes,
+              textureAtlas: processingOptions.textureAtlas,
             })
           : fileList[i];
 
@@ -684,6 +687,18 @@ export default function GLBProcessor() {
               className={styles.checkbox}
             />
             <span>Join Meshes (same material)</span>
+          </label>
+          <label className={styles.optionLabel}>
+            <input
+              type="checkbox"
+              checked={processingOptions.textureAtlas}
+              onChange={(e) => setProcessingOptions(prev => ({
+                ...prev,
+                textureAtlas: e.target.checked
+              }))}
+              className={styles.checkbox}
+            />
+            <span>Texture Atlas (merge materials)</span>
           </label>
           {/* <label className={styles.optionLabel}>
             <input
