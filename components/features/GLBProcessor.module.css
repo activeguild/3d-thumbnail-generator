@@ -459,6 +459,11 @@
   color: #64748b;
 }
 
+.badgeArmature {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
 .modelInfo {
   display: flex;
   gap: 1rem;
@@ -512,6 +517,11 @@
 .severityHint {
   background: rgba(167, 139, 250, 0.1);
   border-left: 3px solid #a78bfa;
+}
+
+.severityArmature {
+  background: rgba(251, 146, 60, 0.1);
+  border-left: 3px solid #fb923c;
 }
 
 .messageLabel {

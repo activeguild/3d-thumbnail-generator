@@ -42,6 +42,89 @@ export default function GLBProcessor() {
     });
   }, []);
 
+  const checkArmatureTransform = (uint8Array) => {
+    try {
+      const view = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
+      const jsonLen = view.getUint32(12, true);
+      const jsonStr = new TextDecoder().decode(uint8Array.slice(20, 20 + jsonLen));
+      const json = JSON.parse(jsonStr);
+
+      const nodes = json.nodes || [];
+      const warnings = [];
+
+      // Build parent map: nodeIndex -> parentIndex
+      const parentMap = new Map();
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+        if (node.children) {
+          for (const childIndex of node.children) {
+            parentMap.set(childIndex, i);
+          }
+        }
+      }
+
+      const hasNonIdentityTransform = (node) => {
+        if (node.matrix) {
+          const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+          return node.matrix.some((v, idx) => Math.abs(v - identity[idx]) > 1e-6);
+        }
+        if (node.translation && node.translation.some(v => Math.abs(v) > 1e-6)) return true;
+        if (node.rotation) {
+          const [rx, ry, rz, rw] = node.rotation;
+          if (Math.abs(rx) > 1e-6 || Math.abs(ry) > 1e-6 || Math.abs(rz) > 1e-6 || Math.abs(rw - 1) > 1e-6) return true;
+        }
+        if (node.scale && node.scale.some(v => Math.abs(v - 1) > 1e-6)) return true;
+        return false;
+      };
+
+      const describeTransform = (node) => {
+        const parts = [];
+        if (node.rotation) {
+          const [rx, ry, rz, rw] = node.rotation;
+          if (Math.abs(rx) > 1e-6 || Math.abs(ry) > 1e-6 || Math.abs(rz) > 1e-6 || Math.abs(rw - 1) > 1e-6) {
+            parts.push(`rotation [${node.rotation.map(v => parseFloat(v.toFixed(4))).join(', ')}]`);
+          }
+        }
+        if (node.translation && node.translation.some(v => Math.abs(v) > 1e-6)) {
+          parts.push(`translation [${node.translation.map(v => parseFloat(v.toFixed(4))).join(', ')}]`);
+        }
+        if (node.scale && node.scale.some(v => Math.abs(v - 1) > 1e-6)) {
+          parts.push(`scale [${node.scale.map(v => parseFloat(v.toFixed(4))).join(', ')}]`);
+        }
+        if (node.matrix) parts.push('matrix transform');
+        return parts.join(', ') || 'non-identity transform';
+      };
+
+      for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+        const node = nodes[nodeIndex];
+        if (node.skin === undefined) continue;
+
+        const nodeName = node.name || `Node ${nodeIndex}`;
+        let ancestorIndex = parentMap.get(nodeIndex);
+
+        while (ancestorIndex !== undefined) {
+          const ancestor = nodes[ancestorIndex];
+          if (hasNonIdentityTransform(ancestor)) {
+            const ancestorName = ancestor.name || `Node ${ancestorIndex}`;
+            const transformDesc = describeTransform(ancestor);
+            warnings.push({
+              nodeName,
+              ancestorName,
+              transformDesc,
+              message: `Skinned mesh "${nodeName}" has ancestor "${ancestorName}" with ${transformDesc}. glTF skinning ignores this, but USD/UsdSkel converters may double-apply it, causing mesh misalignment.`
+            });
+            break;
+          }
+          ancestorIndex = parentMap.get(ancestorIndex);
+        }
+      }
+
+      return warnings;
+    } catch {
+      return [];
+    }
+  };
+
   const countDrawCalls = (uint8Array) => {
     try {
       const view = new DataView(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength);
@@ -91,7 +174,8 @@ export default function GLBProcessor() {
         validatorVersion: report.validatorVersion,
         issues: report.issues,
         info: report.info,
-        drawCalls: countDrawCalls(uint8Array)
+        drawCalls: countDrawCalls(uint8Array),
+        armatureWarnings: checkArmatureTransform(uint8Array)
       };
     } catch (err) {
       return {
@@ -437,16 +521,18 @@ export default function GLBProcessor() {
             {hasValidationResults ? (
               sortedValidationResults.map((result) => {
                 const hasMessages = result.issues?.messages && result.issues.messages.length > 0;
+                const hasArmatureWarnings = result.armatureWarnings && result.armatureWarnings.length > 0;
+                const isExpandable = hasMessages || hasArmatureWarnings;
                 const isExpanded = expandedItems[result.fileName];
 
                 return (
                   <div key={result.fileName} className={styles.validationItem}>
                     <div
-                      className={`${styles.validationItemHeader} ${hasMessages ? styles.clickable : ''}`}
-                      onClick={() => hasMessages && toggleExpanded(result.fileName)}
+                      className={`${styles.validationItemHeader} ${isExpandable ? styles.clickable : ''}`}
+                      onClick={() => isExpandable && toggleExpanded(result.fileName)}
                     >
                       <div className={styles.fileInfo}>
-                        {hasMessages && (
+                        {isExpandable && (
                           <span className={styles.expandIcon}>
                             {isExpanded ? '▼' : '▶'}
                           </span>
@@ -477,8 +563,14 @@ export default function GLBProcessor() {
                             {result.issues.numHints} Hint{result.issues.numHints > 1 ? 's' : ''}
                           </span>
                         )}
+                        {hasArmatureWarnings && (
+                          <span className={`${styles.badge} ${styles.badgeArmature}`}>
+                            Armature Transform
+                          </span>
+                        )}
                         {result.issues?.numErrors === 0 && result.issues?.numWarnings === 0 &&
-                         result.issues?.numInfos === 0 && result.issues?.numHints === 0 && (
+                         result.issues?.numInfos === 0 && result.issues?.numHints === 0 &&
+                         !hasArmatureWarnings && (
                           <span className={`${styles.badge} ${styles.badgeSuccess}`}>Valid</span>
                         )}
                       </div>
@@ -496,15 +588,21 @@ export default function GLBProcessor() {
                       </div>
                     )}
 
-                    {hasMessages && isExpanded && (
+                    {isExpandable && isExpanded && (
                       <div className={styles.messageList}>
-                        {result.issues.messages.map((msg, msgIndex) => (
+                        {hasMessages && result.issues.messages.map((msg, msgIndex) => (
                           <div key={msgIndex} className={`${styles.message} ${getSeverityClass(msg.severity)}`}>
                             <span className={styles.messageLabel}>{getSeverityLabel(msg.severity)}</span>
                             <span className={styles.messageText}>{msg.message}</span>
                             {msg.pointer && (
                               <span className={styles.messagePointer}>{msg.pointer}</span>
                             )}
+                          </div>
+                        ))}
+                        {hasArmatureWarnings && result.armatureWarnings.map((warn, warnIndex) => (
+                          <div key={`armature-${warnIndex}`} className={`${styles.message} ${styles.severityArmature}`}>
+                            <span className={styles.messageLabel}>Armature</span>
+                            <span className={styles.messageText}>{warn.message}</span>
                           </div>
                         ))}
                       </div>
