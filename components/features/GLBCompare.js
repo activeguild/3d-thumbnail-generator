@@ -23,6 +23,8 @@ function getModelStats(gltf) {
   let uniqueMeshes = new Set();
   let materialCount = new Set();
   let textureCount = new Set();
+  let skinJoints = new Set();
+  let skinCount = 0;
 
   gltf.scene.traverse((child) => {
     // Handle regular meshes
@@ -51,6 +53,12 @@ function getModelStats(gltf) {
           if (mat.metalnessMap) textureCount.add(mat.metalnessMap.uuid);
         });
       }
+    }
+
+    // Handle skinned meshes
+    if (child.isSkinnedMesh && child.skeleton) {
+      skinCount++;
+      child.skeleton.bones.forEach(bone => skinJoints.add(bone.uuid));
     }
 
     // Handle particle systems (Points)
@@ -83,7 +91,9 @@ function getModelStats(gltf) {
     materialCount: materialCount.size,
     textureCount: textureCount.size,
     animationCount: gltf.animations.length,
-    animations: animationInfo
+    animations: animationInfo,
+    skinCount,
+    jointCount: skinJoints.size
   };
 }
 
@@ -333,6 +343,12 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
             <span className={styles.statLabel}>Nodes</span>
             <span className={styles.statValue}>{stats.nodeCount}</span>
           </div>
+          {stats.skinCount > 0 && (
+            <div className={styles.statItem}>
+              <span className={styles.statLabel}>Joints</span>
+              <span className={styles.statValue}>{stats.jointCount}</span>
+            </div>
+          )}
           <div className={styles.statItem}>
             <span className={styles.statLabel}>Animations</span>
             <span className={styles.statValue}>{stats.animationCount}</span>
@@ -505,6 +521,8 @@ export default function GLBCompare() {
       { label: 'Nodes', value1: stats1.nodeCount, value2: stats2.nodeCount, format: (v) => v },
       { label: 'Materials', value1: stats1.materialCount, value2: stats2.materialCount, format: (v) => v },
       { label: 'Textures', value1: stats1.textureCount, value2: stats2.textureCount, format: (v) => v },
+      { label: 'Skins', value1: stats1.skinCount, value2: stats2.skinCount, format: (v) => v },
+      { label: 'Joints', value1: stats1.jointCount, value2: stats2.jointCount, format: (v) => v },
       { label: 'Animations', value1: stats1.animationCount, value2: stats2.animationCount, format: (v) => v },
       {
         label: 'Duration',
