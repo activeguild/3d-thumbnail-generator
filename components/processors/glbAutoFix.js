@@ -1,5 +1,6 @@
 import { WebIO } from '@gltf-transform/core';
 import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
+import { prune } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
@@ -278,16 +279,167 @@ function applyTransforms(document) {
 }
 
 /**
- * Apply transforms to a GLB file.
- * Bakes all node transforms into mesh vertices and resets TRS to identity.
- * @param {File} file - Input GLB file
- * @returns {Promise<Blob>} - Processed GLB file as Blob
+ * Check if a node's TRS is identity.
  */
-export async function applyTransformsToGLB(file) {
-  const document = await readDocument(file);
-  applyTransforms(document);
+function isIdentityTRS(node) {
+  const t = node.getTranslation();
+  const r = node.getRotation();
+  const s = node.getScale();
+  const eps = 1e-6;
+  return (
+    Math.abs(t[0]) < eps && Math.abs(t[1]) < eps && Math.abs(t[2]) < eps &&
+    Math.abs(r[0]) < eps && Math.abs(r[1]) < eps && Math.abs(r[2]) < eps && Math.abs(r[3] - 1) < eps &&
+    Math.abs(s[0] - 1) < eps && Math.abs(s[1] - 1) < eps && Math.abs(s[2] - 1) < eps
+  );
+}
 
-  // Merge all buffers into one (GLB requires 0–1 buffers)
+/**
+ * Decompose a 4x4 column-major matrix into TRS.
+ */
+function decomposeMat4(m) {
+  const translation = [m[12], m[13], m[14]];
+
+  const sx = Math.sqrt(m[0]*m[0] + m[1]*m[1] + m[2]*m[2]);
+  const sy = Math.sqrt(m[4]*m[4] + m[5]*m[5] + m[6]*m[6]);
+  const sz = Math.sqrt(m[8]*m[8] + m[9]*m[9] + m[10]*m[10]);
+  const scale = [sx, sy, sz];
+
+  // Normalize rotation matrix
+  const r00 = m[0]/sx, r01 = m[1]/sx, r02 = m[2]/sx;
+  const r10 = m[4]/sy, r11 = m[5]/sy, r12 = m[6]/sy;
+  const r20 = m[8]/sz, r21 = m[9]/sz, r22 = m[10]/sz;
+
+  // Rotation matrix to quaternion
+  const trace = r00 + r11 + r22;
+  let qx, qy, qz, qw;
+  if (trace > 0) {
+    const s = 0.5 / Math.sqrt(trace + 1.0);
+    qw = 0.25 / s;
+    qx = (r12 - r21) * s;
+    qy = (r20 - r02) * s;
+    qz = (r01 - r10) * s;
+  } else if (r00 > r11 && r00 > r22) {
+    const s = 2.0 * Math.sqrt(1.0 + r00 - r11 - r22);
+    qw = (r12 - r21) / s;
+    qx = 0.25 * s;
+    qy = (r10 + r01) / s;
+    qz = (r20 + r02) / s;
+  } else if (r11 > r22) {
+    const s = 2.0 * Math.sqrt(1.0 + r11 - r00 - r22);
+    qw = (r20 - r02) / s;
+    qx = (r10 + r01) / s;
+    qy = 0.25 * s;
+    qz = (r21 + r12) / s;
+  } else {
+    const s = 2.0 * Math.sqrt(1.0 + r22 - r00 - r11);
+    qw = (r01 - r10) / s;
+    qx = (r20 + r02) / s;
+    qy = (r21 + r12) / s;
+    qz = 0.25 * s;
+  }
+  const rotation = [qx, qy, qz, qw];
+
+  return { translation, rotation, scale };
+}
+
+/**
+ * Fix armature transforms for skinned meshes.
+ * 1. Pushes non-identity transforms from ancestors of skinned mesh nodes
+ *    down to their children, preserving visual appearance.
+ * 2. Re-parents skinned mesh nodes to the scene root so they are root-level,
+ *    resolving "Node with a skinned mesh is not root" warnings.
+ */
+function fixArmatureTransforms(document) {
+  const root = document.getRoot();
+  const nodes = root.listNodes();
+
+  // Find all nodes that are skinned mesh nodes
+  const skinnedNodes = nodes.filter(n => n.getSkin());
+  if (skinnedNodes.length === 0) return;
+
+  // --- Phase 1: Push ancestor transforms down ---
+
+  const skinnedNodeSet = new Set(skinnedNodes);
+  const problematicAncestors = new Set();
+  for (const skinNode of skinnedNodeSet) {
+    let current = skinNode.getParentNode();
+    while (current) {
+      if (!isIdentityTRS(current)) {
+        problematicAncestors.add(current);
+      }
+      current = current.getParentNode();
+    }
+  }
+
+  if (problematicAncestors.size > 0) {
+    // Process ancestors from deepest to shallowest (leaf-first)
+    const ancestorList = [...problematicAncestors];
+    ancestorList.sort((a, b) => {
+      let depthA = 0, depthB = 0;
+      let n = a;
+      while (n.getParentNode()) { depthA++; n = n.getParentNode(); }
+      n = b;
+      while (n.getParentNode()) { depthB++; n = n.getParentNode(); }
+      return depthB - depthA;
+    });
+
+    for (const ancestor of ancestorList) {
+      if (isIdentityTRS(ancestor)) continue;
+
+      const ancestorMat = mat4FromTRS(
+        ancestor.getTranslation(),
+        ancestor.getRotation(),
+        ancestor.getScale()
+      );
+
+      for (const child of ancestor.listChildren()) {
+        const childMat = mat4FromTRS(
+          child.getTranslation(),
+          child.getRotation(),
+          child.getScale()
+        );
+        const newChildMat = mat4Multiply(ancestorMat, childMat);
+        const { translation, rotation, scale } = decomposeMat4(newChildMat);
+        child.setTranslation(translation);
+        child.setRotation(rotation);
+        child.setScale(scale);
+      }
+
+      ancestor.setTranslation([0, 0, 0]);
+      ancestor.setRotation([0, 0, 0, 1]);
+      ancestor.setScale([1, 1, 1]);
+    }
+  }
+
+  // --- Phase 2: Re-parent skinned mesh nodes to scene root ---
+
+  const scenes = root.listScenes();
+  if (scenes.length === 0) return;
+  const scene = scenes[0];
+
+  for (const skinNode of skinnedNodes) {
+    const parent = skinNode.getParentNode();
+    if (!parent) continue; // already a scene root child
+
+    // Compute the skinned node's current world transform
+    const worldMat = getWorldTransform(skinNode);
+    const { translation, rotation, scale } = decomposeMat4(worldMat);
+
+    // Detach from parent, attach to scene root
+    parent.removeChild(skinNode);
+    scene.addChild(skinNode);
+
+    // Set the world transform as the new local transform
+    skinNode.setTranslation(translation);
+    skinNode.setRotation(rotation);
+    skinNode.setScale(scale);
+  }
+}
+
+/**
+ * Merge all buffers in the document into one (GLB requires 0–1 buffers).
+ */
+function mergeBuffers(document) {
   const root = document.getRoot();
   const buffers = root.listBuffers();
   if (buffers.length > 1) {
@@ -301,6 +453,32 @@ export async function applyTransformsToGLB(file) {
       }
     }
   }
+}
 
+/**
+ * Auto-fix a GLB file with the specified options.
+ * @param {File} file - Input GLB file
+ * @param {Object} options - Fix options
+ * @param {boolean} options.applyTransforms - Bake all node transforms into vertices
+ * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
+ * @param {boolean} options.removeUnused - Remove unused objects
+ * @returns {Promise<Blob>} - Processed GLB file as Blob
+ */
+export async function autoFixGLB(file, options = {}) {
+  const document = await readDocument(file);
+
+  if (options.fixArmatureTransforms) {
+    fixArmatureTransforms(document);
+  }
+
+  if (options.applyTransforms) {
+    applyTransforms(document);
+  }
+
+  if (options.removeUnused) {
+    await document.transform(prune());
+  }
+
+  mergeBuffers(document);
   return writeGLB(document);
 }

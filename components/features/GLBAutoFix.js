@@ -11,7 +11,11 @@ function formatFileSize(bytes) {
 
 export default function GLBAutoFix() {
   const [file, setFile] = useState(null);
-  const [options, setOptions] = useState({ applyTransforms: true });
+  const [options, setOptions] = useState({
+    applyTransforms: true,
+    fixArmatureTransforms: true,
+    removeUnused: true,
+  });
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -50,18 +54,16 @@ export default function GLBAutoFix() {
     setResult(null);
 
     try {
-      const { applyTransformsToGLB } = await import('@/components/processors/glbAutoFix');
+      const { autoFixGLB } = await import('@/components/processors/glbAutoFix');
 
-      let blob = null;
-      if (options.applyTransforms) {
-        blob = await applyTransformsToGLB(file);
-      }
-
-      if (blob) {
-        setResult({ blob, size: blob.size });
-      } else {
+      const hasOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
+      if (!hasOption) {
         setError('No fix options selected.');
+        return;
       }
+
+      const blob = await autoFixGLB(file, options);
+      setResult({ blob, size: blob.size });
     } catch (err) {
       console.error('Auto fix failed:', err);
       setError(`Processing failed: ${err.message}`);
@@ -80,7 +82,7 @@ export default function GLBAutoFix() {
     URL.revokeObjectURL(url);
   }, [result, file]);
 
-  const hasAnyOption = options.applyTransforms;
+  const hasAnyOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
 
   return (
     <div className={styles.container}>
@@ -138,6 +140,22 @@ export default function GLBAutoFix() {
           <div className={styles.optionItem}>
             <input
               type="checkbox"
+              id="fixArmatureTransforms"
+              checked={options.fixArmatureTransforms}
+              onChange={(e) => setOptions(prev => ({ ...prev, fixArmatureTransforms: e.target.checked }))}
+            />
+            <label htmlFor="fixArmatureTransforms" className={styles.optionLabel}>
+              <span className={styles.optionName}>Fix Armature Transforms</span>
+              <span className={styles.optionDesc}>
+                Push non-identity transforms from skinned mesh ancestors down to children,
+                and re-parent skinned meshes to scene root.
+                Fixes USD/UsdSkel double-apply issues.
+              </span>
+            </label>
+          </div>
+          <div className={styles.optionItem}>
+            <input
+              type="checkbox"
               id="applyTransforms"
               checked={options.applyTransforms}
               onChange={(e) => setOptions(prev => ({ ...prev, applyTransforms: e.target.checked }))}
@@ -147,6 +165,20 @@ export default function GLBAutoFix() {
               <span className={styles.optionDesc}>
                 Bake all node transforms into mesh vertices and reset TRS to identity.
                 Fixes parent-child transform misalignment issues. Supports skinned meshes.
+              </span>
+            </label>
+          </div>
+          <div className={styles.optionItem}>
+            <input
+              type="checkbox"
+              id="removeUnused"
+              checked={options.removeUnused}
+              onChange={(e) => setOptions(prev => ({ ...prev, removeUnused: e.target.checked }))}
+            />
+            <label htmlFor="removeUnused" className={styles.optionLabel}>
+              <span className={styles.optionName}>Remove Unused Objects</span>
+              <span className={styles.optionDesc}>
+                Remove unreferenced nodes, meshes, materials, textures, and accessors.
               </span>
             </label>
           </div>
