@@ -360,14 +360,14 @@ function decomposeMat4(m) {
 /**
  * Fix armature transforms for skinned meshes.
  *
- * Simply clears non-identity transforms on ancestors of skinned mesh nodes.
- * This is safe because the glTF skinning equation includes
- * inverse(meshWorldTransform) * jointWorldTransform * IBM,
- * so the ancestor transform cancels out and removing it doesn't change
- * the skinning result or break animation keyframes.
+ * Re-parents skinned mesh nodes to the scene root, preserving their
+ * world transform as the new local transform. This resolves:
+ * - "Node with a skinned mesh is not root" warnings
+ * - "Ancestor has non-identity transform" warnings (for USD conversion)
  *
- * Also re-parents skinned mesh nodes to scene root to resolve
- * "Node with a skinned mesh is not root" warnings.
+ * Does NOT clear ancestor transforms — joints remain under the original
+ * hierarchy so that the skinning equation (which cancels mesh world vs
+ * joint world) and animation keyframes are preserved correctly.
  */
 function fixArmatureTransforms(document) {
   const root = document.getRoot();
@@ -376,43 +376,30 @@ function fixArmatureTransforms(document) {
   const skinnedNodes = nodes.filter(n => n.getSkin());
   if (skinnedNodes.length === 0) return;
 
-  // Collect all ancestor nodes of skinned meshes
-  const problematicAncestors = new Set();
-  for (const skinNode of skinnedNodes) {
-    let current = skinNode.getParentNode();
-    while (current) {
-      if (!isIdentityTRS(current)) {
-        problematicAncestors.add(current);
-      }
-      current = current.getParentNode();
-    }
-  }
-
-  // Simply clear ancestor transforms to identity.
-  // The skinning equation cancels them out, so no child adjustment needed.
-  for (const ancestor of problematicAncestors) {
-    ancestor.setTranslation([0, 0, 0]);
-    ancestor.setRotation([0, 0, 0, 1]);
-    ancestor.setScale([1, 1, 1]);
-  }
-
-  // Re-parent skinned mesh nodes to scene root
   const scenes = root.listScenes();
   if (scenes.length === 0) return;
   const scene = scenes[0];
 
+  // Check if a node is a direct child of the scene (root-level)
+  const sceneChildren = new Set(scene.listChildren());
+
   for (const skinNode of skinnedNodes) {
-    const parent = skinNode.getParentNode();
-    if (!parent) continue; // already a scene root child
+    if (sceneChildren.has(skinNode)) continue; // already at scene root
+
+    // Compute current world transform before re-parenting
+    const worldMat = getWorldTransform(skinNode);
+    const { translation, rotation, scale } = decomposeMat4(worldMat);
 
     // Detach from parent, attach to scene root
-    // Skinned mesh world transform is ignored in glTF skinning,
-    // so we reset it to identity for clean USD conversion.
-    parent.removeChild(skinNode);
+    const parent = skinNode.getParentNode();
+    if (parent) parent.removeChild(skinNode);
     scene.addChild(skinNode);
-    skinNode.setTranslation([0, 0, 0]);
-    skinNode.setRotation([0, 0, 0, 1]);
-    skinNode.setScale([1, 1, 1]);
+
+    // Preserve world transform as new local transform
+    // This maintains visual size/position (e.g., 0.01 scale from ancestor)
+    skinNode.setTranslation(translation);
+    skinNode.setRotation(rotation);
+    skinNode.setScale(scale);
   }
 }
 
