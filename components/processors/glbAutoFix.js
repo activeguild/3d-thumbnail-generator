@@ -417,6 +417,46 @@ function fixArmatureTransforms(document) {
 }
 
 /**
+ * Sanitize inverseBindMatrices to fix floating-point precision artifacts.
+ * Snaps near-zero values to 0 and near-one values to 1 in the affine row
+ * (indices 3, 7, 11, 15 of each MAT4), which must be [0, 0, 0, 1].
+ */
+function sanitizeInverseBindMatrices(document) {
+  const root = document.getRoot();
+  const eps = 1e-10;
+
+  for (const skin of root.listSkins()) {
+    const ibmAccessor = skin.getInverseBindMatrices();
+    if (!ibmAccessor) continue;
+
+    for (let i = 0; i < ibmAccessor.getCount(); i++) {
+      const mat = ibmAccessor.getElement(i, new Array(16).fill(0));
+      let changed = false;
+
+      for (let j = 0; j < 16; j++) {
+        if (Math.abs(mat[j]) < eps) {
+          if (mat[j] !== 0) { mat[j] = 0; changed = true; }
+        } else if (Math.abs(mat[j] - 1) < eps) {
+          if (mat[j] !== 1) { mat[j] = 1; changed = true; }
+        } else if (Math.abs(mat[j] + 1) < eps) {
+          if (mat[j] !== -1) { mat[j] = -1; changed = true; }
+        }
+      }
+
+      // Enforce affine bottom row: [0, 0, 0, 1]
+      if (mat[3] !== 0 || mat[7] !== 0 || mat[11] !== 0 || mat[15] !== 1) {
+        mat[3] = 0; mat[7] = 0; mat[11] = 0; mat[15] = 1;
+        changed = true;
+      }
+
+      if (changed) {
+        ibmAccessor.setElement(i, mat);
+      }
+    }
+  }
+}
+
+/**
  * Merge all buffers in the document into one (GLB requires 0–1 buffers).
  */
 function mergeBuffers(document) {
@@ -459,6 +499,7 @@ export async function autoFixGLB(file, options = {}) {
     await document.transform(prune());
   }
 
+  sanitizeInverseBindMatrices(document);
   mergeBuffers(document);
   return writeGLB(document);
 }
