@@ -178,13 +178,47 @@ function getWorldTransform(node) {
 }
 
 /**
+ * Collect sets of nodes that must NOT have their transforms reset:
+ * - Joints (referenced by any skin)
+ * - Nodes targeted by animation channels
+ * - Skinned mesh nodes
+ */
+function getProtectedNodes(document) {
+  const root = document.getRoot();
+  const protectedNodes = new Set();
+
+  // Joints
+  for (const skin of root.listSkins()) {
+    for (const joint of skin.listJoints()) {
+      protectedNodes.add(joint);
+    }
+  }
+
+  // Skinned mesh nodes
+  for (const node of root.listNodes()) {
+    if (node.getSkin()) protectedNodes.add(node);
+  }
+
+  // Animation targets
+  for (const animation of root.listAnimations()) {
+    for (const channel of animation.listChannels()) {
+      const target = channel.getTargetNode();
+      if (target) protectedNodes.add(target);
+    }
+  }
+
+  return protectedNodes;
+}
+
+/**
  * Apply transforms to all nodes in the document.
  * Bakes world transforms into mesh vertices and resets node TRS to identity.
- * For skinned meshes, recalculates inverseBindMatrices.
+ * Skips joints, skinned mesh nodes, and animation targets to preserve animations.
  */
 function applyTransforms(document) {
   const root = document.getRoot();
   const nodes = root.listNodes();
+  const protectedNodes = getProtectedNodes(document);
 
   // Build a map of which meshes are used by which nodes (meshes can be instanced)
   const meshNodeMap = new Map();
@@ -198,29 +232,16 @@ function applyTransforms(document) {
   // Track which Accessors have already been transformed to avoid double-transform on shared data
   const transformedAccessors = new Set();
 
-  // Process skinned meshes: recalculate inverseBindMatrices
-  const skinnedNodes = nodes.filter(n => n.getSkin());
-  for (const node of skinnedNodes) {
-    const skin = node.getSkin();
-    const joints = skin.listJoints();
-    const ibmAccessor = skin.getInverseBindMatrices();
-    if (!ibmAccessor || transformedAccessors.has(ibmAccessor)) continue;
-    transformedAccessors.add(ibmAccessor);
-
-    // Recalculate IBM: inverseBindMatrix[i] = inverse(jointWorldTransform[i])
-    for (let i = 0; i < joints.length; i++) {
-      const jointWorld = getWorldTransform(joints[i]);
-      const ibm = mat4Invert(jointWorld);
-      ibmAccessor.setElement(i, Array.from(ibm));
-    }
-  }
-
   // Process meshes: bake world transform into vertex data
   for (const [mesh, meshNodes] of meshNodeMap) {
-    // For instanced meshes (shared by multiple nodes), skip baking — only reset transforms
+    // For instanced meshes (shared by multiple nodes), skip baking
     if (meshNodes.length > 1) continue;
 
     const node = meshNodes[0];
+
+    // Skip protected nodes (joints, skinned meshes, animation targets)
+    if (protectedNodes.has(node)) continue;
+
     const worldMat = getWorldTransform(node);
 
     // Skip if already identity
@@ -231,14 +252,9 @@ function applyTransforms(document) {
     }
     if (isIdentity) continue;
 
-    // If this node has a skin, don't transform the mesh vertices
-    // (skinned mesh vertices are in bind space, controlled by joints + IBM)
-    if (node.getSkin()) continue;
-
     const normalMat = mat3NormalFromMat4(worldMat);
 
     for (const primitive of mesh.listPrimitives()) {
-      // Transform positions
       const position = primitive.getAttribute('POSITION');
       if (position && !transformedAccessors.has(position)) {
         transformedAccessors.add(position);
@@ -248,7 +264,6 @@ function applyTransforms(document) {
         }
       }
 
-      // Transform normals
       const normal = primitive.getAttribute('NORMAL');
       if (normal && !transformedAccessors.has(normal)) {
         transformedAccessors.add(normal);
@@ -258,7 +273,6 @@ function applyTransforms(document) {
         }
       }
 
-      // Transform tangents
       const tangent = primitive.getAttribute('TANGENT');
       if (tangent && !transformedAccessors.has(tangent)) {
         transformedAccessors.add(tangent);
@@ -270,8 +284,9 @@ function applyTransforms(document) {
     }
   }
 
-  // Reset all node transforms to identity
+  // Reset only non-protected node transforms to identity
   for (const node of nodes) {
+    if (protectedNodes.has(node)) continue;
     node.setTranslation([0, 0, 0]);
     node.setRotation([0, 0, 0, 1]);
     node.setScale([1, 1, 1]);
@@ -344,24 +359,26 @@ function decomposeMat4(m) {
 
 /**
  * Fix armature transforms for skinned meshes.
- * 1. Pushes non-identity transforms from ancestors of skinned mesh nodes
- *    down to their children, preserving visual appearance.
- * 2. Re-parents skinned mesh nodes to the scene root so they are root-level,
- *    resolving "Node with a skinned mesh is not root" warnings.
+ *
+ * Simply clears non-identity transforms on ancestors of skinned mesh nodes.
+ * This is safe because the glTF skinning equation includes
+ * inverse(meshWorldTransform) * jointWorldTransform * IBM,
+ * so the ancestor transform cancels out and removing it doesn't change
+ * the skinning result or break animation keyframes.
+ *
+ * Also re-parents skinned mesh nodes to scene root to resolve
+ * "Node with a skinned mesh is not root" warnings.
  */
 function fixArmatureTransforms(document) {
   const root = document.getRoot();
   const nodes = root.listNodes();
 
-  // Find all nodes that are skinned mesh nodes
   const skinnedNodes = nodes.filter(n => n.getSkin());
   if (skinnedNodes.length === 0) return;
 
-  // --- Phase 1: Push ancestor transforms down ---
-
-  const skinnedNodeSet = new Set(skinnedNodes);
+  // Collect all ancestor nodes of skinned meshes
   const problematicAncestors = new Set();
-  for (const skinNode of skinnedNodeSet) {
+  for (const skinNode of skinnedNodes) {
     let current = skinNode.getParentNode();
     while (current) {
       if (!isIdentityTRS(current)) {
@@ -371,48 +388,15 @@ function fixArmatureTransforms(document) {
     }
   }
 
-  if (problematicAncestors.size > 0) {
-    // Process ancestors from deepest to shallowest (leaf-first)
-    const ancestorList = [...problematicAncestors];
-    ancestorList.sort((a, b) => {
-      let depthA = 0, depthB = 0;
-      let n = a;
-      while (n.getParentNode()) { depthA++; n = n.getParentNode(); }
-      n = b;
-      while (n.getParentNode()) { depthB++; n = n.getParentNode(); }
-      return depthB - depthA;
-    });
-
-    for (const ancestor of ancestorList) {
-      if (isIdentityTRS(ancestor)) continue;
-
-      const ancestorMat = mat4FromTRS(
-        ancestor.getTranslation(),
-        ancestor.getRotation(),
-        ancestor.getScale()
-      );
-
-      for (const child of ancestor.listChildren()) {
-        const childMat = mat4FromTRS(
-          child.getTranslation(),
-          child.getRotation(),
-          child.getScale()
-        );
-        const newChildMat = mat4Multiply(ancestorMat, childMat);
-        const { translation, rotation, scale } = decomposeMat4(newChildMat);
-        child.setTranslation(translation);
-        child.setRotation(rotation);
-        child.setScale(scale);
-      }
-
-      ancestor.setTranslation([0, 0, 0]);
-      ancestor.setRotation([0, 0, 0, 1]);
-      ancestor.setScale([1, 1, 1]);
-    }
+  // Simply clear ancestor transforms to identity.
+  // The skinning equation cancels them out, so no child adjustment needed.
+  for (const ancestor of problematicAncestors) {
+    ancestor.setTranslation([0, 0, 0]);
+    ancestor.setRotation([0, 0, 0, 1]);
+    ancestor.setScale([1, 1, 1]);
   }
 
-  // --- Phase 2: Re-parent skinned mesh nodes to scene root ---
-
+  // Re-parent skinned mesh nodes to scene root
   const scenes = root.listScenes();
   if (scenes.length === 0) return;
   const scene = scenes[0];
@@ -421,18 +405,14 @@ function fixArmatureTransforms(document) {
     const parent = skinNode.getParentNode();
     if (!parent) continue; // already a scene root child
 
-    // Compute the skinned node's current world transform
-    const worldMat = getWorldTransform(skinNode);
-    const { translation, rotation, scale } = decomposeMat4(worldMat);
-
     // Detach from parent, attach to scene root
+    // Skinned mesh world transform is ignored in glTF skinning,
+    // so we reset it to identity for clean USD conversion.
     parent.removeChild(skinNode);
     scene.addChild(skinNode);
-
-    // Set the world transform as the new local transform
-    skinNode.setTranslation(translation);
-    skinNode.setRotation(rotation);
-    skinNode.setScale(scale);
+    skinNode.setTranslation([0, 0, 0]);
+    skinNode.setRotation([0, 0, 0, 1]);
+    skinNode.setScale([1, 1, 1]);
   }
 }
 
