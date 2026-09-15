@@ -485,8 +485,16 @@ export async function autoFixGLB(file, options = {}) {
 
   if (options.generateTangents) {
     const { loadGenerateTangents } = await import('./mikktspaceLoader');
-    const generateTangents = await loadGenerateTangents();
-    await document.transform(tangents({ generateTangents }));
+    const rawGenerateTangents = await loadGenerateTangents();
+    // Wrap to gracefully skip primitives with degenerate geometry
+    const safeGenerateTangents = (position, normal, texcoord) => {
+      try {
+        return rawGenerateTangents(position, normal, texcoord);
+      } catch {
+        return new Float32Array((position.length / 3) * 4);
+      }
+    };
+    await document.transform(tangents({ generateTangents: safeGenerateTangents }));
   }
 
   if (options.removeUnused) {
