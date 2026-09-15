@@ -1,6 +1,6 @@
 import { WebIO } from '@gltf-transform/core';
 import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
-import { prune, tangents } from '@gltf-transform/functions';
+import { prune } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
@@ -483,19 +483,6 @@ export async function autoFixGLB(file, options = {}) {
     applyTransforms(document);
   }
 
-  if (options.generateTangents) {
-    const { loadGenerateTangents } = await import('./mikktspaceLoader');
-    const rawGenerateTangents = await loadGenerateTangents();
-    // Wrap to gracefully skip primitives with degenerate geometry
-    const safeGenerateTangents = (position, normal, texcoord) => {
-      try {
-        return rawGenerateTangents(position, normal, texcoord);
-      } catch {
-        return new Float32Array((position.length / 3) * 4);
-      }
-    };
-    await document.transform(tangents({ generateTangents: safeGenerateTangents }));
-  }
 
   if (options.removeUnused) {
     await document.transform(prune());

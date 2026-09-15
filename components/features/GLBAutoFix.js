@@ -14,7 +14,6 @@ export default function GLBAutoFix() {
   const [options, setOptions] = useState({
     applyTransforms: true,
     fixArmatureTransforms: true,
-    generateTangents: true,
     removeUnused: true,
   });
   const [processing, setProcessing] = useState(false);
@@ -57,7 +56,7 @@ export default function GLBAutoFix() {
     try {
       const { autoFixGLB } = await import('@/components/processors/glbAutoFix');
 
-      const hasOption = options.applyTransforms || options.fixArmatureTransforms || options.generateTangents || options.removeUnused;
+      const hasOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
       if (!hasOption) {
         setError('No fix options selected.');
         return;
@@ -83,7 +82,7 @@ export default function GLBAutoFix() {
     URL.revokeObjectURL(url);
   }, [result, file]);
 
-  const hasAnyOption = options.applyTransforms || options.fixArmatureTransforms || options.generateTangents || options.removeUnused;
+  const hasAnyOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
 
   return (
     <div className={styles.container}>
@@ -169,22 +168,7 @@ export default function GLBAutoFix() {
               </span>
             </label>
           </div>
-          <div className={styles.optionItem}>
-            <input
-              type="checkbox"
-              id="generateTangents"
-              checked={options.generateTangents}
-              onChange={(e) => setOptions(prev => ({ ...prev, generateTangents: e.target.checked }))}
-            />
-            <label htmlFor="generateTangents" className={styles.optionLabel}>
-              <span className={styles.optionName}>Generate Tangents</span>
-              <span className={styles.optionDesc}>
-                Generate missing tangent vectors for meshes with normal maps (MikkTSpace).
-                Ensures portable tangent space across renderers.
-              </span>
-            </label>
-          </div>
-          <div className={styles.optionItem}>
+<div className={styles.optionItem}>
             <input
               type="checkbox"
               id="removeUnused"
