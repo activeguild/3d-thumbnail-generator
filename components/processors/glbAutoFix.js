@@ -1,6 +1,7 @@
 import { WebIO } from '@gltf-transform/core';
-import { KHRDracoMeshCompression, EXTTextureWebP } from '@gltf-transform/extensions';
+import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
+import { MeshoptDecoder } from 'meshoptimizer';
 
 let _io = null;
 
@@ -10,11 +11,13 @@ async function getIO() {
       draco3d.createDecoderModule({ locateFile: (f) => `/draco/${f}` }),
       draco3d.createEncoderModule({ locateFile: (f) => `/draco/${f}` }),
     ]);
+    await MeshoptDecoder.ready;
     _io = new WebIO()
-      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP])
+      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression])
       .registerDependencies({
         'draco3d.decoder': decoderModule,
         'draco3d.encoder': encoderModule,
+        'meshopt.decoder': MeshoptDecoder,
       });
   }
   return _io;
