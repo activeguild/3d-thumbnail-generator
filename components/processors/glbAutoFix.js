@@ -1,0 +1,286 @@
+import { WebIO } from '@gltf-transform/core';
+import { KHRDracoMeshCompression, EXTTextureWebP } from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
+
+let _io = null;
+
+async function getIO() {
+  if (!_io) {
+    const [decoderModule, encoderModule] = await Promise.all([
+      draco3d.createDecoderModule({ locateFile: (f) => `/draco/${f}` }),
+      draco3d.createEncoderModule({ locateFile: (f) => `/draco/${f}` }),
+    ]);
+    _io = new WebIO()
+      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP])
+      .registerDependencies({
+        'draco3d.decoder': decoderModule,
+        'draco3d.encoder': encoderModule,
+      });
+  }
+  return _io;
+}
+
+async function readDocument(file) {
+  const buffer = await file.arrayBuffer();
+  const io = await getIO();
+  return await io.readBinary(new Uint8Array(buffer));
+}
+
+async function writeGLB(document) {
+  const io = await getIO();
+  const glb = await io.writeBinary(document);
+  return new Blob([glb], { type: 'model/gltf-binary' });
+}
+
+/**
+ * Multiply two 4x4 matrices (column-major, flat array of 16).
+ */
+function mat4Multiply(a, b) {
+  const out = new Float64Array(16);
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      out[j * 4 + i] =
+        a[0 * 4 + i] * b[j * 4 + 0] +
+        a[1 * 4 + i] * b[j * 4 + 1] +
+        a[2 * 4 + i] * b[j * 4 + 2] +
+        a[3 * 4 + i] * b[j * 4 + 3];
+    }
+  }
+  return out;
+}
+
+/**
+ * Invert a 4x4 matrix (column-major).
+ */
+function mat4Invert(m) {
+  const inv = new Float64Array(16);
+  inv[0]  =  m[5]*m[10]*m[15] - m[5]*m[11]*m[14] - m[9]*m[6]*m[15] + m[9]*m[7]*m[14] + m[13]*m[6]*m[11] - m[13]*m[7]*m[10];
+  inv[4]  = -m[4]*m[10]*m[15] + m[4]*m[11]*m[14] + m[8]*m[6]*m[15] - m[8]*m[7]*m[14] - m[12]*m[6]*m[11] + m[12]*m[7]*m[10];
+  inv[8]  =  m[4]*m[9]*m[15]  - m[4]*m[11]*m[13] - m[8]*m[5]*m[15] + m[8]*m[7]*m[13] + m[12]*m[5]*m[11] - m[12]*m[7]*m[9];
+  inv[12] = -m[4]*m[9]*m[14]  + m[4]*m[10]*m[13] + m[8]*m[5]*m[14] - m[8]*m[6]*m[13] - m[12]*m[5]*m[10] + m[12]*m[6]*m[9];
+  inv[1]  = -m[1]*m[10]*m[15] + m[1]*m[11]*m[14] + m[9]*m[2]*m[15] - m[9]*m[3]*m[14] - m[13]*m[2]*m[11] + m[13]*m[3]*m[10];
+  inv[5]  =  m[0]*m[10]*m[15] - m[0]*m[11]*m[14] - m[8]*m[2]*m[15] + m[8]*m[3]*m[14] + m[12]*m[2]*m[11] - m[12]*m[3]*m[10];
+  inv[9]  = -m[0]*m[9]*m[15]  + m[0]*m[11]*m[13] + m[8]*m[1]*m[15] - m[8]*m[3]*m[13] - m[12]*m[1]*m[11] + m[12]*m[3]*m[9];
+  inv[13] =  m[0]*m[9]*m[14]  - m[0]*m[10]*m[13] - m[8]*m[1]*m[14] + m[8]*m[2]*m[13] + m[12]*m[1]*m[10] - m[12]*m[2]*m[9];
+  inv[2]  =  m[1]*m[6]*m[15]  - m[1]*m[7]*m[14]  - m[5]*m[2]*m[15] + m[5]*m[3]*m[14] + m[13]*m[2]*m[7]  - m[13]*m[3]*m[6];
+  inv[6]  = -m[0]*m[6]*m[15]  + m[0]*m[7]*m[14]  + m[4]*m[2]*m[15] - m[4]*m[3]*m[14] - m[12]*m[2]*m[7]  + m[12]*m[3]*m[6];
+  inv[10] =  m[0]*m[5]*m[15]  - m[0]*m[7]*m[13]  - m[4]*m[1]*m[15] + m[4]*m[3]*m[13] + m[12]*m[1]*m[7]  - m[12]*m[3]*m[5];
+  inv[14] = -m[0]*m[5]*m[14]  + m[0]*m[6]*m[13]  + m[4]*m[1]*m[14] - m[4]*m[2]*m[13] - m[12]*m[1]*m[6]  + m[12]*m[2]*m[5];
+  inv[3]  = -m[1]*m[6]*m[11]  + m[1]*m[7]*m[10]  + m[5]*m[2]*m[11] - m[5]*m[3]*m[10] - m[9]*m[2]*m[7]   + m[9]*m[3]*m[6];
+  inv[7]  =  m[0]*m[6]*m[11]  - m[0]*m[7]*m[10]  - m[4]*m[2]*m[11] + m[4]*m[3]*m[10] + m[8]*m[2]*m[7]   - m[8]*m[3]*m[6];
+  inv[11] = -m[0]*m[5]*m[11]  + m[0]*m[7]*m[9]   + m[4]*m[1]*m[11] - m[4]*m[3]*m[9]  - m[8]*m[1]*m[7]   + m[8]*m[3]*m[5];
+  inv[15] =  m[0]*m[5]*m[10]  - m[0]*m[6]*m[9]   - m[4]*m[1]*m[10] + m[4]*m[2]*m[9]  + m[8]*m[1]*m[6]   - m[8]*m[2]*m[5];
+
+  const det = m[0]*inv[0] + m[1]*inv[4] + m[2]*inv[8] + m[3]*inv[12];
+  if (Math.abs(det) < 1e-12) return Float64Array.from([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+
+  const invDet = 1.0 / det;
+  for (let i = 0; i < 16; i++) inv[i] *= invDet;
+  return inv;
+}
+
+/**
+ * Build a 4x4 matrix from TRS (column-major).
+ */
+function mat4FromTRS(t, r, s) {
+  const [x, y, z, w] = r;
+  const x2 = x + x, y2 = y + y, z2 = z + z;
+  const xx = x * x2, xy = x * y2, xz = x * z2;
+  const yy = y * y2, yz = y * z2, zz = z * z2;
+  const wx = w * x2, wy = w * y2, wz = w * z2;
+
+  return Float64Array.from([
+    (1 - (yy + zz)) * s[0], (xy + wz) * s[0],         (xz - wy) * s[0],         0,
+    (xy - wz) * s[1],       (1 - (xx + zz)) * s[1],    (yz + wx) * s[1],         0,
+    (xz + wy) * s[2],       (yz - wx) * s[2],          (1 - (xx + yy)) * s[2],   0,
+    t[0],                    t[1],                       t[2],                      1,
+  ]);
+}
+
+/**
+ * Extract the 3x3 upper-left (rotation+scale) as a normal matrix (inverse transpose).
+ * For transforming normals correctly.
+ */
+function mat3NormalFromMat4(m) {
+  const a00 = m[0], a01 = m[1], a02 = m[2];
+  const a10 = m[4], a11 = m[5], a12 = m[6];
+  const a20 = m[8], a21 = m[9], a22 = m[10];
+
+  const b01 = a22 * a11 - a12 * a21;
+  const b11 = -a22 * a10 + a12 * a20;
+  const b21 = a21 * a10 - a11 * a20;
+
+  let det = a00 * b01 + a01 * b11 + a02 * b21;
+  if (Math.abs(det) < 1e-12) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
+  det = 1.0 / det;
+  return [
+    b01 * det, (-a22 * a01 + a02 * a21) * det, (a12 * a01 - a02 * a11) * det,
+    b11 * det, (a22 * a00 - a02 * a20) * det,  (-a12 * a00 + a02 * a10) * det,
+    b21 * det, (-a21 * a00 + a01 * a20) * det, (a11 * a00 - a01 * a10) * det,
+  ];
+}
+
+/**
+ * Transform a vec3 by a 4x4 matrix (as a point, w=1).
+ */
+function vec3TransformMat4(v, m) {
+  const x = v[0], y = v[1], z = v[2];
+  const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  return [
+    (m[0] * x + m[4] * y + m[8]  * z + m[12]) / w,
+    (m[1] * x + m[5] * y + m[9]  * z + m[13]) / w,
+    (m[2] * x + m[6] * y + m[10] * z + m[14]) / w,
+  ];
+}
+
+/**
+ * Transform a vec3 normal by a 3x3 normal matrix, then normalize.
+ */
+function vec3TransformNormal(v, nm) {
+  const x = v[0], y = v[1], z = v[2];
+  const rx = nm[0] * x + nm[3] * y + nm[6] * z;
+  const ry = nm[1] * x + nm[4] * y + nm[7] * z;
+  const rz = nm[2] * x + nm[5] * y + nm[8] * z;
+  const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1;
+  return [rx / len, ry / len, rz / len];
+}
+
+/**
+ * Transform a vec4 tangent by a 4x4 matrix. Preserves the w (handedness) component.
+ */
+function vec4TransformTangent(v, m) {
+  const x = v[0], y = v[1], z = v[2], w = v[3];
+  const rx = m[0] * x + m[4] * y + m[8]  * z;
+  const ry = m[1] * x + m[5] * y + m[9]  * z;
+  const rz = m[2] * x + m[6] * y + m[10] * z;
+  const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1;
+  return [rx / len, ry / len, rz / len, w];
+}
+
+/**
+ * Compute world transform for a gltf-transform Node.
+ */
+function getWorldTransform(node) {
+  const localMat = mat4FromTRS(
+    node.getTranslation(),
+    node.getRotation(),
+    node.getScale()
+  );
+  const parent = node.getParentNode();
+  if (!parent) return localMat;
+  return mat4Multiply(getWorldTransform(parent), localMat);
+}
+
+/**
+ * Apply transforms to all nodes in the document.
+ * Bakes world transforms into mesh vertices and resets node TRS to identity.
+ * For skinned meshes, recalculates inverseBindMatrices.
+ */
+function applyTransforms(document) {
+  const root = document.getRoot();
+  const nodes = root.listNodes();
+
+  // Build a map of which meshes are used by which nodes (meshes can be instanced)
+  const meshNodeMap = new Map();
+  for (const node of nodes) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    if (!meshNodeMap.has(mesh)) meshNodeMap.set(mesh, []);
+    meshNodeMap.get(mesh).push(node);
+  }
+
+  // Track which Accessors have already been transformed to avoid double-transform on shared data
+  const transformedAccessors = new Set();
+
+  // Process skinned meshes: recalculate inverseBindMatrices
+  const skinnedNodes = nodes.filter(n => n.getSkin());
+  for (const node of skinnedNodes) {
+    const skin = node.getSkin();
+    const joints = skin.listJoints();
+    const ibmAccessor = skin.getInverseBindMatrices();
+    if (!ibmAccessor || transformedAccessors.has(ibmAccessor)) continue;
+    transformedAccessors.add(ibmAccessor);
+
+    // Recalculate IBM: inverseBindMatrix[i] = inverse(jointWorldTransform[i])
+    for (let i = 0; i < joints.length; i++) {
+      const jointWorld = getWorldTransform(joints[i]);
+      const ibm = mat4Invert(jointWorld);
+      ibmAccessor.setElement(i, Array.from(ibm));
+    }
+  }
+
+  // Process meshes: bake world transform into vertex data
+  for (const [mesh, meshNodes] of meshNodeMap) {
+    // For instanced meshes (shared by multiple nodes), skip baking — only reset transforms
+    if (meshNodes.length > 1) continue;
+
+    const node = meshNodes[0];
+    const worldMat = getWorldTransform(node);
+
+    // Skip if already identity
+    const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    let isIdentity = true;
+    for (let i = 0; i < 16; i++) {
+      if (Math.abs(worldMat[i] - identity[i]) > 1e-6) { isIdentity = false; break; }
+    }
+    if (isIdentity) continue;
+
+    // If this node has a skin, don't transform the mesh vertices
+    // (skinned mesh vertices are in bind space, controlled by joints + IBM)
+    if (node.getSkin()) continue;
+
+    const normalMat = mat3NormalFromMat4(worldMat);
+
+    for (const primitive of mesh.listPrimitives()) {
+      // Transform positions
+      const position = primitive.getAttribute('POSITION');
+      if (position && !transformedAccessors.has(position)) {
+        transformedAccessors.add(position);
+        for (let i = 0; i < position.getCount(); i++) {
+          const v = position.getElement(i, [0, 0, 0]);
+          position.setElement(i, vec3TransformMat4(v, worldMat));
+        }
+      }
+
+      // Transform normals
+      const normal = primitive.getAttribute('NORMAL');
+      if (normal && !transformedAccessors.has(normal)) {
+        transformedAccessors.add(normal);
+        for (let i = 0; i < normal.getCount(); i++) {
+          const v = normal.getElement(i, [0, 0, 0]);
+          normal.setElement(i, vec3TransformNormal(v, normalMat));
+        }
+      }
+
+      // Transform tangents
+      const tangent = primitive.getAttribute('TANGENT');
+      if (tangent && !transformedAccessors.has(tangent)) {
+        transformedAccessors.add(tangent);
+        for (let i = 0; i < tangent.getCount(); i++) {
+          const v = tangent.getElement(i, [0, 0, 0, 0]);
+          tangent.setElement(i, vec4TransformTangent(v, worldMat));
+        }
+      }
+    }
+  }
+
+  // Reset all node transforms to identity
+  for (const node of nodes) {
+    node.setTranslation([0, 0, 0]);
+    node.setRotation([0, 0, 0, 1]);
+    node.setScale([1, 1, 1]);
+  }
+}
+
+/**
+ * Apply transforms to a GLB file.
+ * Bakes all node transforms into mesh vertices and resets TRS to identity.
+ * @param {File} file - Input GLB file
+ * @returns {Promise<Blob>} - Processed GLB file as Blob
+ */
+export async function applyTransformsToGLB(file) {
+  const document = await readDocument(file);
+  applyTransforms(document);
+  return writeGLB(document);
+}

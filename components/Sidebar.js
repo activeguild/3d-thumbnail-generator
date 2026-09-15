@@ -24,6 +24,12 @@ const FEATURES = [
     name: 'GLB Compare',
     icon: '🔍',
     description: 'Compare two GLB files side by side'
+  },
+  {
+    id: 'glb-autofix',
+    name: '3D Auto Fix',
+    icon: '🔧',
+    description: 'Automatically fix common 3D model issues'
   }
 ];
 
