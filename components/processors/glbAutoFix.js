@@ -285,5 +285,21 @@ function applyTransforms(document) {
 export async function applyTransformsToGLB(file) {
   const document = await readDocument(file);
   applyTransforms(document);
+
+  // Merge all buffers into one (GLB requires 0–1 buffers)
+  const root = document.getRoot();
+  const buffers = root.listBuffers();
+  if (buffers.length > 1) {
+    const keepBuffer = buffers[0];
+    for (let i = 1; i < buffers.length; i++) {
+      buffers[i].dispose();
+    }
+    for (const accessor of root.listAccessors()) {
+      if (!accessor.getBuffer()) {
+        accessor.setBuffer(keepBuffer);
+      }
+    }
+  }
+
   return writeGLB(document);
 }
