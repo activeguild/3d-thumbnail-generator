@@ -360,14 +360,18 @@ function decomposeMat4(m) {
 /**
  * Fix armature transforms for skinned meshes.
  *
- * Re-parents skinned mesh nodes to the scene root, preserving their
- * world transform as the new local transform. This resolves:
+ * Re-parents skinned mesh nodes to the scene root with identity transform.
+ * The ancestor's world transform is baked into mesh vertex positions instead
+ * of being stored on the node. This resolves:
  * - "Node with a skinned mesh is not root" warnings
+ * - "Local transforms will not affect a skinned mesh" warnings
  * - "Ancestor has non-identity transform" warnings (for USD conversion)
  *
- * Does NOT clear ancestor transforms — joints remain under the original
- * hierarchy so that the skinning equation (which cancels mesh world vs
- * joint world) and animation keyframes are preserved correctly.
+ * The math: the skinning equation computes `boneWorld × IBM × vertex`.
+ * By replacing vertex positions with `M_ancestor × vertex`, the result
+ * becomes `boneWorld × IBM × M_ancestor × vertex` — identical to the
+ * original rendering where `M_ancestor` was applied via the mesh's
+ * model matrix. Works for both Three.js and spec-compliant renderers.
  */
 function fixArmatureTransforms(document) {
   const root = document.getRoot();
@@ -380,26 +384,65 @@ function fixArmatureTransforms(document) {
   if (scenes.length === 0) return;
   const scene = scenes[0];
 
-  // Check if a node is a direct child of the scene (root-level)
   const sceneChildren = new Set(scene.listChildren());
+  const transformedAccessors = new Set();
 
   for (const skinNode of skinnedNodes) {
-    if (sceneChildren.has(skinNode)) continue; // already at scene root
+    if (sceneChildren.has(skinNode)) continue;
 
-    // Compute current world transform before re-parenting
+    // Compute the accumulated world transform from ancestors
     const worldMat = getWorldTransform(skinNode);
-    const { translation, rotation, scale } = decomposeMat4(worldMat);
 
-    // Detach from parent, attach to scene root
+    // Check if it's identity — skip if so
+    const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    let isIdentity = true;
+    for (let i = 0; i < 16; i++) {
+      if (Math.abs(worldMat[i] - identity[i]) > 1e-6) { isIdentity = false; break; }
+    }
+
+    // Bake world transform into mesh vertices if non-identity
+    if (!isIdentity) {
+      const mesh = skinNode.getMesh();
+      if (mesh) {
+        const normalMat = mat3NormalFromMat4(worldMat);
+        for (const primitive of mesh.listPrimitives()) {
+          const position = primitive.getAttribute('POSITION');
+          if (position && !transformedAccessors.has(position)) {
+            transformedAccessors.add(position);
+            for (let i = 0; i < position.getCount(); i++) {
+              const v = position.getElement(i, [0, 0, 0]);
+              position.setElement(i, vec3TransformMat4(v, worldMat));
+            }
+          }
+
+          const normal = primitive.getAttribute('NORMAL');
+          if (normal && !transformedAccessors.has(normal)) {
+            transformedAccessors.add(normal);
+            for (let i = 0; i < normal.getCount(); i++) {
+              const v = normal.getElement(i, [0, 0, 0]);
+              normal.setElement(i, vec3TransformNormal(v, normalMat));
+            }
+          }
+
+          const tangent = primitive.getAttribute('TANGENT');
+          if (tangent && !transformedAccessors.has(tangent)) {
+            transformedAccessors.add(tangent);
+            for (let i = 0; i < tangent.getCount(); i++) {
+              const v = tangent.getElement(i, [0, 0, 0, 0]);
+              tangent.setElement(i, vec4TransformTangent(v, worldMat));
+            }
+          }
+        }
+      }
+    }
+
+    // Detach from parent, attach to scene root with identity
     const parent = skinNode.getParentNode();
     if (parent) parent.removeChild(skinNode);
     scene.addChild(skinNode);
-
-    // Preserve world transform as new local transform
-    // This maintains visual size/position (e.g., 0.01 scale from ancestor)
-    skinNode.setTranslation(translation);
-    skinNode.setRotation(rotation);
-    skinNode.setScale(scale);
+    skinNode.setTranslation([0, 0, 0]);
+    skinNode.setRotation([0, 0, 0, 1]);
+    skinNode.setScale([1, 1, 1]);
   }
 }
 
