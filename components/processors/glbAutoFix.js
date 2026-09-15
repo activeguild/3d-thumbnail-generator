@@ -361,17 +361,25 @@ function decomposeMat4(m) {
  * Fix armature transforms for skinned meshes.
  *
  * Re-parents skinned mesh nodes to the scene root with identity transform.
- * The ancestor's world transform is baked into mesh vertex positions instead
- * of being stored on the node. This resolves:
+ * Adjusts inverseBindMatrices to compensate for the removed ancestor transform:
+ *   new_IBM[i] = old_IBM[i] × M_ancestor
+ *
+ * This resolves:
  * - "Node with a skinned mesh is not root" warnings
  * - "Local transforms will not affect a skinned mesh" warnings
  * - "Ancestor has non-identity transform" warnings (for USD conversion)
  *
- * The math: the skinning equation computes `boneWorld × IBM × vertex`.
- * By replacing vertex positions with `M_ancestor × vertex`, the result
- * becomes `boneWorld × IBM × M_ancestor × vertex` — identical to the
- * original rendering where `M_ancestor` was applied via the mesh's
- * model matrix. Works for both Three.js and spec-compliant renderers.
+ * Three.js rendering pipeline:
+ *   final = meshWorld × bindMatrixInverse × boneWorld × IBM × bindMatrix × v
+ *
+ * Original (mesh under ancestor M_a):
+ *   = M_a × M_a⁻¹ × boneWorld × IBM × M_a × v = boneWorld × IBM × M_a × v
+ *
+ * After fix (mesh at root, identity, adjusted IBM):
+ *   = I × I × boneWorld × (old_IBM × M_a) × I × v = boneWorld × old_IBM × M_a × v
+ *
+ * Identical results. Animations preserved because vertex data and joint
+ * hierarchy are unchanged — only IBM absorbs the ancestor transform.
  */
 function fixArmatureTransforms(document) {
   const root = document.getRoot();
@@ -385,7 +393,7 @@ function fixArmatureTransforms(document) {
   const scene = scenes[0];
 
   const sceneChildren = new Set(scene.listChildren());
-  const transformedAccessors = new Set();
+  const adjustedSkins = new Set();
 
   for (const skinNode of skinnedNodes) {
     if (sceneChildren.has(skinNode)) continue;
@@ -393,45 +401,19 @@ function fixArmatureTransforms(document) {
     // Compute the accumulated world transform from ancestors
     const worldMat = getWorldTransform(skinNode);
 
-    // Check if it's identity — skip if so
-    const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-    let isIdentity = true;
-    for (let i = 0; i < 16; i++) {
-      if (Math.abs(worldMat[i] - identity[i]) > 1e-6) { isIdentity = false; break; }
-    }
-
-    // Bake world transform into mesh vertices if non-identity
-    if (!isIdentity) {
-      const mesh = skinNode.getMesh();
-      if (mesh) {
-        const normalMat = mat3NormalFromMat4(worldMat);
-        for (const primitive of mesh.listPrimitives()) {
-          const position = primitive.getAttribute('POSITION');
-          if (position && !transformedAccessors.has(position)) {
-            transformedAccessors.add(position);
-            for (let i = 0; i < position.getCount(); i++) {
-              const v = position.getElement(i, [0, 0, 0]);
-              position.setElement(i, vec3TransformMat4(v, worldMat));
-            }
-          }
-
-          const normal = primitive.getAttribute('NORMAL');
-          if (normal && !transformedAccessors.has(normal)) {
-            transformedAccessors.add(normal);
-            for (let i = 0; i < normal.getCount(); i++) {
-              const v = normal.getElement(i, [0, 0, 0]);
-              normal.setElement(i, vec3TransformNormal(v, normalMat));
-            }
-          }
-
-          const tangent = primitive.getAttribute('TANGENT');
-          if (tangent && !transformedAccessors.has(tangent)) {
-            transformedAccessors.add(tangent);
-            for (let i = 0; i < tangent.getCount(); i++) {
-              const v = tangent.getElement(i, [0, 0, 0, 0]);
-              tangent.setElement(i, vec4TransformTangent(v, worldMat));
-            }
-          }
+    // Adjust IBM: new_IBM[i] = old_IBM[i] × M_ancestor
+    const skin = skinNode.getSkin();
+    if (skin && !adjustedSkins.has(skin)) {
+      adjustedSkins.add(skin);
+      const ibmAccessor = skin.getInverseBindMatrices();
+      if (ibmAccessor) {
+        for (let i = 0; i < ibmAccessor.getCount(); i++) {
+          const oldIBM = ibmAccessor.getElement(i, new Array(16).fill(0));
+          const newIBM = mat4Multiply(
+            Float64Array.from(oldIBM),
+            worldMat
+          );
+          ibmAccessor.setElement(i, Array.from(newIBM));
         }
       }
     }
