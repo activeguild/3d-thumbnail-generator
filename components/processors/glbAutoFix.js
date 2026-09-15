@@ -180,6 +180,7 @@ function getWorldTransform(node) {
 /**
  * Collect sets of nodes that must NOT have their transforms reset:
  * - Joints (referenced by any skin)
+ * - Ancestors of joints (their transforms affect joint world matrices)
  * - Nodes targeted by animation channels
  * - Skinned mesh nodes
  */
@@ -187,10 +188,16 @@ function getProtectedNodes(document) {
   const root = document.getRoot();
   const protectedNodes = new Set();
 
-  // Joints
+  // Joints and their ancestors
   for (const skin of root.listSkins()) {
     for (const joint of skin.listJoints()) {
       protectedNodes.add(joint);
+      // Protect all ancestors — their transforms contribute to joint world matrices
+      let ancestor = joint.getParentNode();
+      while (ancestor) {
+        protectedNodes.add(ancestor);
+        ancestor = ancestor.getParentNode();
+      }
     }
   }
 
