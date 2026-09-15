@@ -41,7 +41,7 @@ async function initWasm() {
   const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
 
   const imports = {
-    __wbindgen_placeholder__: {
+    './mikktspace_module_bg.js': {
       __wbindgen_string_new(arg0, arg1) {
         const mem = new Uint8Array(wasm.memory.buffer);
         const ret = decoder.decode(mem.subarray(arg0, arg0 + arg1));
@@ -54,17 +54,8 @@ async function initWasm() {
   };
 
   const result = await WebAssembly.instantiate(bytes, imports);
-  const wasm = result.instance.exports;
-
-  // Patch imports to use the actual wasm memory
-  imports.__wbindgen_placeholder__.__wbindgen_string_new = function(arg0, arg1) {
-    const mem = new Uint8Array(wasm.memory.buffer);
-    const ret = decoder.decode(mem.subarray(arg0, arg0 + arg1));
-    return addHeapObject(ret);
-  };
-
-  wasmInstance = wasm;
-  return wasm;
+  wasmInstance = result.instance.exports;
+  return wasmInstance;
 }
 
 /**
