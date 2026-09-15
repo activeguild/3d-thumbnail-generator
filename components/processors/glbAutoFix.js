@@ -367,26 +367,14 @@ function decomposeMat4(m) {
 /**
  * Fix armature transforms for skinned meshes.
  *
- * Re-parents skinned mesh nodes to the scene root with identity transform.
- * Adjusts inverseBindMatrices to compensate for the removed ancestor transform:
- *   new_IBM[i] = old_IBM[i] × M_ancestor
- *
- * This resolves:
+ * Re-parents skinned mesh nodes to the scene root, preserving their
+ * world transform as the new local transform. This resolves:
  * - "Node with a skinned mesh is not root" warnings
- * - "Local transforms will not affect a skinned mesh" warnings
  * - "Ancestor has non-identity transform" warnings (for USD conversion)
  *
- * Three.js rendering pipeline:
- *   final = meshWorld × bindMatrixInverse × boneWorld × IBM × bindMatrix × v
- *
- * Original (mesh under ancestor M_a):
- *   = M_a × M_a⁻¹ × boneWorld × IBM × M_a × v = boneWorld × IBM × M_a × v
- *
- * After fix (mesh at root, identity, adjusted IBM):
- *   = I × I × boneWorld × (old_IBM × M_a) × I × v = boneWorld × old_IBM × M_a × v
- *
- * Identical results. Animations preserved because vertex data and joint
- * hierarchy are unchanged — only IBM absorbs the ancestor transform.
+ * The world transform is kept on the mesh node so that rendering stays
+ * correct regardless of whether joints share the same ancestor chain.
+ * IBM and vertex data are left unchanged.
  */
 function fixArmatureTransforms(document) {
   const root = document.getRoot();
@@ -400,38 +388,23 @@ function fixArmatureTransforms(document) {
   const scene = scenes[0];
 
   const sceneChildren = new Set(scene.listChildren());
-  const adjustedSkins = new Set();
 
   for (const skinNode of skinnedNodes) {
     if (sceneChildren.has(skinNode)) continue;
 
-    // Compute the accumulated world transform from ancestors
+    // Compute current world transform before re-parenting
     const worldMat = getWorldTransform(skinNode);
+    const { translation, rotation, scale } = decomposeMat4(worldMat);
 
-    // Adjust IBM: new_IBM[i] = old_IBM[i] × M_ancestor
-    const skin = skinNode.getSkin();
-    if (skin && !adjustedSkins.has(skin)) {
-      adjustedSkins.add(skin);
-      const ibmAccessor = skin.getInverseBindMatrices();
-      if (ibmAccessor) {
-        for (let i = 0; i < ibmAccessor.getCount(); i++) {
-          const oldIBM = ibmAccessor.getElement(i, new Array(16).fill(0));
-          const newIBM = mat4Multiply(
-            Float64Array.from(oldIBM),
-            worldMat
-          );
-          ibmAccessor.setElement(i, Array.from(newIBM));
-        }
-      }
-    }
-
-    // Detach from parent, attach to scene root with identity
+    // Detach from parent, attach to scene root
     const parent = skinNode.getParentNode();
     if (parent) parent.removeChild(skinNode);
     scene.addChild(skinNode);
-    skinNode.setTranslation([0, 0, 0]);
-    skinNode.setRotation([0, 0, 0, 1]);
-    skinNode.setScale([1, 1, 1]);
+
+    // Preserve world transform as local transform for correct rendering
+    skinNode.setTranslation(translation);
+    skinNode.setRotation(rotation);
+    skinNode.setScale(scale);
   }
 }
 
