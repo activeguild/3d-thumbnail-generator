@@ -1,6 +1,6 @@
 import { WebIO } from '@gltf-transform/core';
 import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
-import { prune } from '@gltf-transform/functions';
+import { prune, tangents } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
@@ -469,6 +469,7 @@ function mergeBuffers(document) {
  * @param {boolean} options.applyTransforms - Bake all node transforms into vertices
  * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
  * @param {boolean} options.removeUnused - Remove unused objects
+ * @param {boolean} options.generateTangents - Generate missing tangents for normal-mapped meshes
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
 export async function autoFixGLB(file, options = {}) {
@@ -480,6 +481,11 @@ export async function autoFixGLB(file, options = {}) {
 
   if (options.applyTransforms) {
     applyTransforms(document);
+  }
+
+  if (options.generateTangents) {
+    const { generateTangents } = await import('mikktspace');
+    await document.transform(tangents({ generateTangents }));
   }
 
   if (options.removeUnused) {
