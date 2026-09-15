@@ -484,7 +484,8 @@ export async function autoFixGLB(file, options = {}) {
   }
 
   if (options.generateTangents) {
-    const { generateTangents } = await import('mikktspace');
+    const { loadGenerateTangents } = await import('./mikktspaceLoader');
+    const generateTangents = await loadGenerateTangents();
     await document.transform(tangents({ generateTangents }));
   }
 
