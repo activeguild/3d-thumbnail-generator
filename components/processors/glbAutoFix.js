@@ -449,6 +449,36 @@ function sanitizeInverseBindMatrices(document) {
 }
 
 /**
+ * Normalize all NORMAL vectors to unit length.
+ * Replaces zero-length normals with [0, 0, 1] (default up-facing normal).
+ * Fixes "Vector3 is not of unit length" validation errors.
+ */
+function normalizeNormals(document) {
+  const root = document.getRoot();
+  const processedAccessors = new Set();
+
+  for (const mesh of root.listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      const normal = primitive.getAttribute('NORMAL');
+      if (!normal || processedAccessors.has(normal)) continue;
+      processedAccessors.add(normal);
+
+      for (let i = 0; i < normal.getCount(); i++) {
+        const v = normal.getElement(i, [0, 0, 0]);
+        const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (len < 1e-6) {
+          // Zero-length normal — replace with default
+          normal.setElement(i, [0, 0, 1]);
+        } else if (Math.abs(len - 1.0) > 1e-4) {
+          // Non-unit-length — normalize
+          normal.setElement(i, [v[0] / len, v[1] / len, v[2] / len]);
+        }
+      }
+    }
+  }
+}
+
+/**
  * Merge all buffers in the document into one (GLB requires 0–1 buffers).
  */
 function mergeBuffers(document) {
@@ -474,6 +504,7 @@ function mergeBuffers(document) {
  * @param {boolean} options.applyTransforms - Bake all node transforms into vertices
  * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
  * @param {boolean} options.removeUnused - Remove unused objects
+ * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
  * @param {boolean} options.generateTangents - Generate missing tangents for normal-mapped meshes
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
@@ -488,6 +519,9 @@ export async function autoFixGLB(file, options = {}) {
     applyTransforms(document);
   }
 
+  if (options.normalizeNormals) {
+    normalizeNormals(document);
+  }
 
   if (options.removeUnused) {
     await document.transform(prune());

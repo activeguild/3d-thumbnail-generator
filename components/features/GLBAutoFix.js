@@ -14,6 +14,7 @@ export default function GLBAutoFix() {
   const [options, setOptions] = useState({
     applyTransforms: true,
     fixArmatureTransforms: true,
+    normalizeNormals: true,
     removeUnused: true,
   });
   const [processing, setProcessing] = useState(false);
@@ -56,7 +57,7 @@ export default function GLBAutoFix() {
     try {
       const { autoFixGLB } = await import('@/components/processors/glbAutoFix');
 
-      const hasOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
+      const hasOption = options.applyTransforms || options.fixArmatureTransforms || options.normalizeNormals || options.removeUnused;
       if (!hasOption) {
         setError('No fix options selected.');
         return;
@@ -82,7 +83,7 @@ export default function GLBAutoFix() {
     URL.revokeObjectURL(url);
   }, [result, file]);
 
-  const hasAnyOption = options.applyTransforms || options.fixArmatureTransforms || options.removeUnused;
+  const hasAnyOption = options.applyTransforms || options.fixArmatureTransforms || options.normalizeNormals || options.removeUnused;
 
   return (
     <div className={styles.container}>
@@ -168,7 +169,22 @@ export default function GLBAutoFix() {
               </span>
             </label>
           </div>
-<div className={styles.optionItem}>
+          <div className={styles.optionItem}>
+            <input
+              type="checkbox"
+              id="normalizeNormals"
+              checked={options.normalizeNormals}
+              onChange={(e) => setOptions(prev => ({ ...prev, normalizeNormals: e.target.checked }))}
+            />
+            <label htmlFor="normalizeNormals" className={styles.optionLabel}>
+              <span className={styles.optionName}>Normalize Normals</span>
+              <span className={styles.optionDesc}>
+                Fix non-unit-length normal vectors. Replaces zero-length normals
+                with a default value. Fixes &quot;not of unit length&quot; validation errors.
+              </span>
+            </label>
+          </div>
+          <div className={styles.optionItem}>
             <input
               type="checkbox"
               id="removeUnused"
