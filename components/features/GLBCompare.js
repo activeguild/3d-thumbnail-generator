@@ -25,6 +25,9 @@ function getModelStats(gltf) {
   let textureCount = new Set();
   let skinJoints = new Set();
   let skinCount = 0;
+  let maxWeightsPerVertex = 0;
+  let allSingleUV = true;
+  let hasMeshWithUV = false;
 
   gltf.scene.traverse((child) => {
     // Handle regular meshes
@@ -43,6 +46,14 @@ function getModelStats(gltf) {
         vertices += geometry.attributes.position.count;
       }
 
+      // Check UV sets per mesh
+      if (geometry.attributes.uv) {
+        hasMeshWithUV = true;
+        if (geometry.attributes.uv1 || geometry.attributes.uv2 || geometry.attributes.uv3) {
+          allSingleUV = false;
+        }
+      }
+
       if (child.material) {
         const materials = Array.isArray(child.material) ? child.material : [child.material];
         materials.forEach(mat => {
@@ -59,6 +70,20 @@ function getModelStats(gltf) {
     if (child.isSkinnedMesh && child.skeleton) {
       skinCount++;
       child.skeleton.bones.forEach(bone => skinJoints.add(bone.uuid));
+
+      // Count actual non-zero bone weights per vertex
+      const geometry = child.geometry;
+      const skinWeightAttr = geometry.attributes.skinWeight;
+      if (skinWeightAttr) {
+        const itemSize = skinWeightAttr.itemSize;
+        for (let i = 0; i < skinWeightAttr.count; i++) {
+          let nonZero = 0;
+          for (let j = 0; j < itemSize; j++) {
+            if (skinWeightAttr.getComponent(i, j) > 0) nonZero++;
+          }
+          if (nonZero > maxWeightsPerVertex) maxWeightsPerVertex = nonZero;
+        }
+      }
     }
 
     // Handle particle systems (Points)
@@ -92,8 +117,10 @@ function getModelStats(gltf) {
     textureCount: textureCount.size,
     animationCount: gltf.animations.length,
     animations: animationInfo,
+    singleUV: hasMeshWithUV ? allSingleUV : null,
     skinCount,
-    jointCount: skinJoints.size
+    jointCount: skinJoints.size,
+    maxWeightsPerVertex
   };
 }
 
@@ -343,11 +370,27 @@ function GLBViewer({ file, label, stats, onStatsUpdate, canvasRef, mixerRef, clo
             <span className={styles.statLabel}>Nodes</span>
             <span className={styles.statValue}>{stats.nodeCount}</span>
           </div>
-          {stats.skinCount > 0 && (
+          <div className={styles.statItem}>
+            <span className={styles.statLabel}>Materials</span>
+            <span className={styles.statValue}>{stats.materialCount}</span>
+          </div>
+          {stats.singleUV !== null && (
             <div className={styles.statItem}>
-              <span className={styles.statLabel}>Joints</span>
-              <span className={styles.statValue}>{stats.jointCount}</span>
+              <span className={styles.statLabel}>UV Sets</span>
+              <span className={styles.statValue}>{stats.singleUV ? '1/mesh ✓' : 'Multiple'}</span>
             </div>
+          )}
+          {stats.skinCount > 0 && (
+            <>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Joints</span>
+                <span className={styles.statValue}>{stats.jointCount}</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Weights/Vtx</span>
+                <span className={styles.statValue}>{stats.maxWeightsPerVertex}</span>
+              </div>
+            </>
           )}
           <div className={styles.statItem}>
             <span className={styles.statLabel}>Animations</span>
@@ -521,8 +564,10 @@ export default function GLBCompare() {
       { label: 'Nodes', value1: stats1.nodeCount, value2: stats2.nodeCount, format: (v) => v },
       { label: 'Materials', value1: stats1.materialCount, value2: stats2.materialCount, format: (v) => v },
       { label: 'Textures', value1: stats1.textureCount, value2: stats2.textureCount, format: (v) => v },
+      { label: 'UV Sets', value1: stats1.singleUV, value2: stats2.singleUV, format: (v) => v === null ? '-' : v ? '1/mesh ✓' : 'Multiple', noPercent: true },
       { label: 'Skins', value1: stats1.skinCount, value2: stats2.skinCount, format: (v) => v },
       { label: 'Joints', value1: stats1.jointCount, value2: stats2.jointCount, format: (v) => v },
+      { label: 'Weights/Vtx', value1: stats1.maxWeightsPerVertex, value2: stats2.maxWeightsPerVertex, format: (v) => v },
       { label: 'Animations', value1: stats1.animationCount, value2: stats2.animationCount, format: (v) => v },
       {
         label: 'Duration',
@@ -551,9 +596,10 @@ export default function GLBCompare() {
             </tr>
           </thead>
           <tbody>
-            {comparisons.map(({ label, value1, value2, format }) => {
-              const diff = value2 - value1;
-              const diffPercent = value1 > 0 ? ((diff / value1) * 100).toFixed(1) : 0;
+            {comparisons.map(({ label, value1, value2, format, noPercent }) => {
+              const isNumeric = typeof value1 === 'number' && typeof value2 === 'number' && !noPercent;
+              const diff = isNumeric ? value2 - value1 : 0;
+              const diffPercent = isNumeric && value1 > 0 ? ((diff / value1) * 100).toFixed(1) : 0;
               const diffClass = diff < 0 ? styles.diffNegative : diff > 0 ? styles.diffPositive : '';
 
               return (
@@ -562,7 +608,7 @@ export default function GLBCompare() {
                   <td>{format(value1)}</td>
                   <td>{format(value2)}</td>
                   <td className={diffClass}>
-                    {diff !== 0 && (
+                    {isNumeric && diff !== 0 && (
                       <>
                         {diff > 0 ? '+' : ''}{diffPercent}%
                       </>
