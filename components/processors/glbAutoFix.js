@@ -405,6 +405,25 @@ function fixArmatureTransforms(document) {
     skinNode.setTranslation(translation);
     skinNode.setRotation(rotation);
     skinNode.setScale(scale);
+
+    // Fix skin.skeleton to point to the common root of all joints.
+    // After re-parenting, the old skeleton reference may no longer be
+    // a common ancestor of both the skinned mesh and all joints.
+    const skin = skinNode.getSkin();
+    if (skin) {
+      const joints = skin.listJoints();
+      if (joints.length > 0) {
+        // Find the topmost joint (one whose parent is not itself a joint)
+        const jointSet = new Set(joints);
+        const rootJoint = joints.find(j => {
+          const p = j.getParentNode();
+          return !p || !jointSet.has(p);
+        });
+        if (rootJoint) {
+          skin.setSkeleton(rootJoint);
+        }
+      }
+    }
   }
 }
 
