@@ -1,6 +1,6 @@
 import { WebIO } from '@gltf-transform/core';
 import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
-import { prune } from '@gltf-transform/functions';
+import { prune, dedup } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
@@ -524,7 +524,7 @@ export async function autoFixGLB(file, options = {}) {
   }
 
   if (options.removeUnused) {
-    await document.transform(prune());
+    await document.transform(dedup(), prune());
   }
 
   sanitizeInverseBindMatrices(document);
