@@ -246,6 +246,139 @@
   padding: 1rem;
 }
 
+.validating {
+  color: #818cf8;
+  font-size: 0.9rem;
+}
+
+.validationSection {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 1rem;
+}
+
+.validationHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  gap: 1rem;
+}
+
+.validationTitle {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.expandIcon {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeError {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.badgeWarning {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.badgeInfo {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+.badgeHint {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
+.badgeSuccess {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.modelInfo {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+}
+
+.messageList {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.message {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.messageLabel {
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.messageText {
+  color: #cbd5e1;
+  word-break: break-word;
+}
+
+.messagePointer {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.severityError .messageLabel {
+  color: #f87171;
+}
+
+.severityWarning .messageLabel {
+  color: #fbbf24;
+}
+
+.severityInfo .messageLabel {
+  color: #60a5fa;
+}
+
+.severityHint .messageLabel {
+  color: #94a3b8;
+}
+
 @media (max-width: 900px) {
   .title {
     font-size: 2rem;
