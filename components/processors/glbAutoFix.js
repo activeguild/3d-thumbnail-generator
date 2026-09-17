@@ -505,7 +505,6 @@ function mergeBuffers(document) {
  * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
  * @param {boolean} options.removeUnused - Remove unused objects
  * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
- * @param {boolean} options.generateTangents - Generate missing tangents for normal-mapped meshes
  * @returns {Promise<Blob>} - Processed GLB file as Blob
  */
 export async function autoFixGLB(file, options = {}) {

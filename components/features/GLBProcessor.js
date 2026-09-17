@@ -165,7 +165,31 @@ export default function GLBProcessor() {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
-      const report = await validator.validateBytes(uint8Array);
+      const report = await validator.validateBytes(uint8Array, {
+        ignoredIssues: ['UNSUPPORTED_EXTENSION'],
+      });
+
+      // Filter out false-positive UNUSED_OBJECT for bufferViews referenced by unsupported extensions (e.g. Draco)
+      const view = new DataView(arrayBuffer);
+      const jsonLen = view.getUint32(12, true);
+      const json = JSON.parse(new TextDecoder().decode(uint8Array.slice(20, 20 + jsonLen)));
+      const extBvRefs = new Set();
+      (json.meshes || []).forEach(m => (m.primitives || []).forEach(p => {
+        const draco = p.extensions?.KHR_draco_mesh_compression;
+        if (draco?.bufferView !== undefined) extBvRefs.add(draco.bufferView);
+      }));
+
+      if (extBvRefs.size > 0) {
+        const filtered = report.issues.messages.filter(msg => {
+          if (msg.code !== 'UNUSED_OBJECT') return true;
+          const match = msg.pointer?.match(/^\/bufferViews\/(\d+)$/);
+          if (match && extBvRefs.has(parseInt(match[1], 10))) return false;
+          return true;
+        });
+        const removed = report.issues.messages.length - filtered.length;
+        report.issues.messages = filtered;
+        report.issues.numInfos = Math.max(0, report.issues.numInfos - removed);
+      }
 
       return {
         fileName: file.name,
