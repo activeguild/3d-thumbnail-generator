@@ -21,6 +21,11 @@ const TemplateViewer = dynamic(() => import('@/components/features/TemplateViewe
   loading: () => <p style={{color: 'white'}}>Loading Template Viewer...</p>
 });
 
+const GLBAutoFix = dynamic(() => import('@/components/features/GLBAutoFix'), {
+  ssr: false,
+  loading: () => <p style={{color: 'white'}}>Loading 3D Auto Fix...</p>
+});
+
 export default function Home() {
   const [activeFeature, setActiveFeature] = useState('thumbnail-asset');
 
@@ -32,6 +37,7 @@ export default function Home() {
         {activeFeature === 'thumbnail-template' && <TemplateViewer />}
         {activeFeature === 'glb-processor' && <GLBProcessor />}
         {activeFeature === 'glb-compare' && <GLBCompare />}
+        {activeFeature === 'glb-autofix' && <GLBAutoFix />}
       </main>
     </div>
   );
