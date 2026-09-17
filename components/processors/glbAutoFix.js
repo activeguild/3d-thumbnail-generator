@@ -1,6 +1,6 @@
 import { WebIO } from '@gltf-transform/core';
 import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
-import { prune, dedup } from '@gltf-transform/functions';
+import { prune } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
@@ -498,142 +498,6 @@ function mergeBuffers(document) {
 }
 
 /**
- * Remove unused bufferViews from the raw GLB binary.
- * gltf-transform's WebIO.writeBinary() can leave orphaned bufferViews
- * that aren't referenced by any accessor or image.
- */
-function cleanUnusedBufferViews(glbUint8Array) {
-  const view = new DataView(glbUint8Array.buffer, glbUint8Array.byteOffset, glbUint8Array.byteLength);
-  const jsonLen = view.getUint32(12, true);
-  const jsonStr = new TextDecoder().decode(glbUint8Array.slice(20, 20 + jsonLen));
-  const json = JSON.parse(jsonStr);
-
-  if (!json.bufferViews || json.bufferViews.length === 0) return glbUint8Array;
-
-  // Collect all referenced bufferView indices
-  const referenced = new Set();
-
-  // From accessors
-  if (json.accessors) {
-    for (const acc of json.accessors) {
-      if (acc.bufferView !== undefined) referenced.add(acc.bufferView);
-      if (acc.sparse) {
-        if (acc.sparse.indices?.bufferView !== undefined) referenced.add(acc.sparse.indices.bufferView);
-        if (acc.sparse.values?.bufferView !== undefined) referenced.add(acc.sparse.values.bufferView);
-      }
-    }
-  }
-
-  // From images
-  if (json.images) {
-    for (const img of json.images) {
-      if (img.bufferView !== undefined) referenced.add(img.bufferView);
-    }
-  }
-
-  // From extensions (e.g. KHR_draco_mesh_compression)
-  if (json.meshes) {
-    for (const mesh of json.meshes) {
-      for (const prim of (mesh.primitives || [])) {
-        if (prim.extensions?.KHR_draco_mesh_compression?.bufferView !== undefined) {
-          referenced.add(prim.extensions.KHR_draco_mesh_compression.bufferView);
-        }
-      }
-    }
-  }
-
-  // Check if all bufferViews are referenced
-  const unreferenced = [];
-  for (let i = 0; i < json.bufferViews.length; i++) {
-    if (!referenced.has(i)) unreferenced.push(i);
-  }
-  if (unreferenced.length === 0) return glbUint8Array;
-
-  // Build index remapping: old index -> new index
-  const remap = new Array(json.bufferViews.length);
-  let newIndex = 0;
-  for (let i = 0; i < json.bufferViews.length; i++) {
-    if (referenced.has(i)) {
-      remap[i] = newIndex++;
-    } else {
-      remap[i] = -1;
-    }
-  }
-
-  // Remove unreferenced bufferViews
-  json.bufferViews = json.bufferViews.filter((_, i) => referenced.has(i));
-
-  // Update all references
-  if (json.accessors) {
-    for (const acc of json.accessors) {
-      if (acc.bufferView !== undefined) acc.bufferView = remap[acc.bufferView];
-      if (acc.sparse) {
-        if (acc.sparse.indices?.bufferView !== undefined) acc.sparse.indices.bufferView = remap[acc.sparse.indices.bufferView];
-        if (acc.sparse.values?.bufferView !== undefined) acc.sparse.values.bufferView = remap[acc.sparse.values.bufferView];
-      }
-    }
-  }
-  if (json.images) {
-    for (const img of json.images) {
-      if (img.bufferView !== undefined) img.bufferView = remap[img.bufferView];
-    }
-  }
-  if (json.meshes) {
-    for (const mesh of json.meshes) {
-      for (const prim of (mesh.primitives || [])) {
-        if (prim.extensions?.KHR_draco_mesh_compression?.bufferView !== undefined) {
-          prim.extensions.KHR_draco_mesh_compression.bufferView = remap[prim.extensions.KHR_draco_mesh_compression.bufferView];
-        }
-      }
-    }
-  }
-
-  // Rebuild GLB
-  const newJsonStr = JSON.stringify(json);
-  const newJsonBytes = new TextEncoder().encode(newJsonStr);
-  // JSON chunk must be padded to 4-byte alignment with spaces (0x20)
-  const jsonPadLen = (4 - (newJsonBytes.length % 4)) % 4;
-  const paddedJsonLen = newJsonBytes.length + jsonPadLen;
-
-  // Extract binary chunk
-  const jsonChunkEnd = 20 + jsonLen;
-  let binChunk = new Uint8Array(0);
-  if (jsonChunkEnd < glbUint8Array.length) {
-    const binLen = view.getUint32(jsonChunkEnd, true);
-    // binChunkEnd = jsonChunkEnd + 8 + binLen
-    binChunk = glbUint8Array.slice(jsonChunkEnd + 8, jsonChunkEnd + 8 + binLen);
-  }
-  const binPadLen = (4 - (binChunk.length % 4)) % 4;
-  const paddedBinLen = binChunk.length + binPadLen;
-
-  const totalLen = 12 + 8 + paddedJsonLen + (binChunk.length > 0 ? 8 + paddedBinLen : 0);
-  const out = new Uint8Array(totalLen);
-  const outView = new DataView(out.buffer);
-
-  // GLB header
-  outView.setUint32(0, 0x46546C67, true); // magic "glTF"
-  outView.setUint32(4, 2, true);           // version
-  outView.setUint32(8, totalLen, true);
-
-  // JSON chunk
-  outView.setUint32(12, paddedJsonLen, true);
-  outView.setUint32(16, 0x4E4F534A, true); // "JSON"
-  out.set(newJsonBytes, 20);
-  for (let i = 0; i < jsonPadLen; i++) out[20 + newJsonBytes.length + i] = 0x20;
-
-  // BIN chunk
-  if (binChunk.length > 0) {
-    const binOffset = 20 + paddedJsonLen;
-    outView.setUint32(binOffset, paddedBinLen, true);
-    outView.setUint32(binOffset + 4, 0x004E4942, true); // "BIN\0"
-    out.set(binChunk, binOffset + 8);
-    for (let i = 0; i < binPadLen; i++) out[binOffset + 8 + binChunk.length + i] = 0;
-  }
-
-  return out;
-}
-
-/**
  * Auto-fix a GLB file with the specified options.
  * @param {File} file - Input GLB file
  * @param {Object} options - Fix options
@@ -659,14 +523,10 @@ export async function autoFixGLB(file, options = {}) {
   }
 
   if (options.removeUnused) {
-    await document.transform(dedup(), prune());
+    await document.transform(prune());
   }
 
   sanitizeInverseBindMatrices(document);
   mergeBuffers(document);
-
-  const io = await getIO();
-  const glb = await io.writeBinary(document);
-  const cleaned = cleanUnusedBufferViews(glb);
-  return new Blob([cleaned], { type: 'model/gltf-binary' });
+  return writeGLB(document);
 }
