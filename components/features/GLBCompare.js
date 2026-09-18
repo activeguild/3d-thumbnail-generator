@@ -75,11 +75,17 @@ function getModelStats(gltf) {
       const geometry = child.geometry;
       const skinWeightAttr = geometry.attributes.skinWeight;
       if (skinWeightAttr) {
-        const itemSize = skinWeightAttr.itemSize;
+        const getters = [
+          (attr, i) => attr.getX(i),
+          (attr, i) => attr.getY(i),
+          (attr, i) => attr.getZ(i),
+          (attr, i) => attr.getW(i),
+        ];
+        const itemSize = Math.min(skinWeightAttr.itemSize, 4);
         for (let i = 0; i < skinWeightAttr.count; i++) {
           let nonZero = 0;
           for (let j = 0; j < itemSize; j++) {
-            if (skinWeightAttr.getComponent(i, j) > 0) nonZero++;
+            if (getters[j](skinWeightAttr, i) > 0) nonZero++;
           }
           if (nonZero > maxWeightsPerVertex) maxWeightsPerVertex = nonZero;
         }

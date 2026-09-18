@@ -405,6 +405,49 @@ function fixArmatureTransforms(document) {
     skinNode.setTranslation(translation);
     skinNode.setRotation(rotation);
     skinNode.setScale(scale);
+
+  }
+}
+
+/**
+ * Fix skin.skeleton to point to the lowest common ancestor (LCA) of all joints.
+ * Fixes "Skeleton node is not a common root" validation errors, which can exist
+ * in the original file or be introduced by re-parenting.
+ */
+function fixSkeletonRoots(document) {
+  const root = document.getRoot();
+
+  const getAncestorChain = (node) => {
+    const chain = [node];
+    let current = node.getParentNode();
+    while (current) {
+      chain.push(current);
+      current = current.getParentNode();
+    }
+    return chain;
+  };
+
+  const lcaOfTwo = (a, b) => {
+    const ancestorsA = new Set(getAncestorChain(a));
+    for (const node of getAncestorChain(b)) {
+      if (ancestorsA.has(node)) return node;
+    }
+    return null;
+  };
+
+  for (const skin of root.listSkins()) {
+    const joints = skin.listJoints();
+    if (joints.length === 0) continue;
+
+    let commonRoot = joints[0];
+    for (let i = 1; i < joints.length; i++) {
+      commonRoot = lcaOfTwo(commonRoot, joints[i]);
+      if (!commonRoot) break;
+    }
+
+    if (commonRoot && skin.getSkeleton() !== commonRoot) {
+      skin.setSkeleton(commonRoot);
+    }
   }
 }
 
@@ -526,6 +569,7 @@ export async function autoFixGLB(file, options = {}) {
     await document.transform(prune());
   }
 
+  fixSkeletonRoots(document);
   sanitizeInverseBindMatrices(document);
   mergeBuffers(document);
   return writeGLB(document);
