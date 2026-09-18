@@ -30,6 +30,12 @@ const FEATURES = [
     name: '3D Auto Fix',
     icon: '🔧',
     description: 'Automatically fix common 3D model issues'
+  },
+  {
+    id: 'glb-contactsheet',
+    name: 'GLB一括プレビュー',
+    icon: '📋',
+    description: 'GLBをまとめて表示・比較'
   }
 ];
 

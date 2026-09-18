@@ -26,6 +26,11 @@ const GLBAutoFix = dynamic(() => import('@/components/features/GLBAutoFix'), {
   loading: () => <p style={{color: 'white'}}>Loading 3D Auto Fix...</p>
 });
 
+const GLBContactSheet = dynamic(() => import('@/components/features/GLBContactSheet'), {
+  ssr: false,
+  loading: () => <p style={{color: 'white'}}>Loading GLB Contact Sheet...</p>
+});
+
 export default function Home() {
   const [activeFeature, setActiveFeature] = useState('thumbnail-asset');
 
@@ -38,6 +43,7 @@ export default function Home() {
         {activeFeature === 'glb-processor' && <GLBProcessor />}
         {activeFeature === 'glb-compare' && <GLBCompare />}
         {activeFeature === 'glb-autofix' && <GLBAutoFix />}
+        {activeFeature === 'glb-contactsheet' && <GLBContactSheet />}
       </main>
     </div>
   );
