@@ -982,26 +982,11 @@ function mergeBuffers(document) {
 }
 
 /**
- * Auto-fix a GLB file with the specified options.
- * @param {File} file - Input GLB file
- * @param {Object} options - Fix options
- * @param {boolean} options.applyTransforms - Bake all node transforms into vertices
- * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
- * @param {boolean} options.removeUnused - Remove unused objects
- * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
- * @param {boolean} options.closeSkeletonHierarchy - Add a root joint and turn non-joint nodes between joints into joints
- * @param {boolean} options.mergeSkinnedMeshes - Merge skinned mesh nodes that share a skin into one node
- * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels of nodes that never move
- * @param {boolean} options.completeJointAnimationChannels - Give animated joints translation / rotation / scale channels
- * @param {boolean} options.normalizeSkinWeights - Normalize skin weights to sum to 1
- * @param {boolean} options.optimizeSkinJoints - Order joints parent-first and store JOINTS_n as UNSIGNED_BYTE when possible
- * @returns {Promise<Blob>} - Processed GLB file as Blob
- *
- * Skinned primitives are always written without Draco compression.
+ * Apply the auto-fix rules to a gltf-transform Document in place.
+ * @param {Document} document - gltf-transform Document
+ * @param {Object} options - Fix options (see autoFixGLB)
  */
-export async function autoFixGLB(file, options = {}) {
-  const document = await readDocument(file);
-
+export async function fixDocument(document, options = {}) {
   if (options.fixArmatureTransforms) {
     fixArmatureTransforms(document);
   }
@@ -1045,5 +1030,47 @@ export async function autoFixGLB(file, options = {}) {
   fixSkeletonRoots(document);
   sanitizeInverseBindMatrices(document);
   mergeBuffers(document);
+  return document;
+}
+
+/**
+ * Auto-fix a GLB file with the specified options.
+ * @param {File} file - Input GLB file
+ * @param {Object} options - Fix options
+ * @param {boolean} options.applyTransforms - Bake all node transforms into vertices
+ * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
+ * @param {boolean} options.removeUnused - Remove unused objects
+ * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
+ * @param {boolean} options.closeSkeletonHierarchy - Add a root joint and turn non-joint nodes between joints into joints
+ * @param {boolean} options.mergeSkinnedMeshes - Merge skinned mesh nodes that share a skin into one node
+ * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels of nodes that never move
+ * @param {boolean} options.completeJointAnimationChannels - Give animated joints translation / rotation / scale channels
+ * @param {boolean} options.normalizeSkinWeights - Normalize skin weights to sum to 1
+ * @param {boolean} options.optimizeSkinJoints - Order joints parent-first and store JOINTS_n as UNSIGNED_BYTE when possible
+ * @returns {Promise<Blob>} - Processed GLB file as Blob
+ *
+ * Skinned primitives are always written without Draco compression.
+ */
+export async function autoFixGLB(file, options = {}) {
+  const document = await readDocument(file);
+  await fixDocument(document, options);
   return writeGLB(document);
 }
+
+// Exported for tests
+export {
+  KHRDracoMeshCompressionSkipSkinned,
+  applyTransforms,
+  fixArmatureTransforms,
+  mergeSkinnedMeshes,
+  closeSkeletonHierarchy,
+  optimizeSkinJoints,
+  removeConstantAnimationChannels,
+  completeJointAnimationChannels,
+  normalizeSkinWeights,
+  normalizeNormals,
+  fixSkeletonRoots,
+  sanitizeInverseBindMatrices,
+  mergeBuffers,
+  decomposeMat4,
+};
