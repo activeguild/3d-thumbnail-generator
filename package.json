@@ -9,7 +9,8 @@
     "start": "next start",
     "serve": "http-server ./public --cors",
     "cli": "node index.js",
-    "batch": "node list.cjs"
+    "batch": "node list.cjs",
+    "test": "vitest run"
   },
   "author": "",
   "license": "MIT",
@@ -33,5 +34,8 @@
     "sharp": "^0.34.5",
     "three": "^0.160.0",
     "upng-js": "^2.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
   }
 }
