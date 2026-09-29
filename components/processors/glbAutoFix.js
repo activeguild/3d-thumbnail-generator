@@ -698,12 +698,46 @@ function optimizeSkinJoints(document) {
   }
 }
 
+const TRS_PATHS = ['translation', 'rotation', 'scale'];
+
+function getRestTRS(node, path) {
+  if (path === 'translation') return node.getTranslation();
+  if (path === 'rotation') return node.getRotation();
+  return node.getScale();
+}
+
+function setRestTRS(node, path, value) {
+  if (path === 'translation') node.setTranslation(value);
+  else if (path === 'rotation') node.setRotation(value);
+  else node.setScale(value);
+}
+
 /**
- * Remove animation channels whose value never changes (LINEAR / STEP only).
- * - If the constant equals the node's rest TRS, the channel is simply removed.
- * - If the document has a single animation, the constant is baked into the node's
- *   rest TRS first, then removed. With several animations the rest pose is shared,
- *   so differing constants are kept.
+ * Return the constant output value of a LINEAR / STEP sampler, or null if it changes.
+ */
+function getConstantSamplerValue(sampler, eps) {
+  if (!sampler || sampler.getInterpolation() === 'CUBICSPLINE') return null;
+  const output = sampler.getOutput();
+  if (!output || output.getCount() === 0) return null;
+  const size = output.getElementSize();
+  const first = output.getElement(0, new Array(size).fill(0));
+  for (let i = 1; i < output.getCount(); i++) {
+    const v = output.getElement(i, new Array(size).fill(0));
+    if (!v.every((x, k) => Math.abs(x - first[k]) < eps)) return null;
+  }
+  return first;
+}
+
+/**
+ * Remove the animation channels of nodes that do not move at all in an animation
+ * (every translation / rotation / scale channel of the node is constant).
+ * Nodes with at least one changing channel keep all of their channels, because
+ * USD converters fill a missing channel of an animated joint with zero / identity
+ * instead of the node's rest value.
+ * - If the constants equal the node's rest TRS, the channels are simply removed.
+ * - If the document has a single animation, the constants are baked into the node's
+ *   rest TRS first. With several animations the rest pose is shared, so nodes with
+ *   differing constants are kept.
  * An animation always keeps at least one channel.
  */
 function removeConstantAnimationChannels(document) {
@@ -712,16 +746,6 @@ function removeConstantAnimationChannels(document) {
   const canBake = animations.length === 1;
   const eps = 1e-6;
 
-  const getRest = (node, path) => {
-    if (path === 'translation') return node.getTranslation();
-    if (path === 'rotation') return node.getRotation();
-    return node.getScale();
-  };
-  const setRest = (node, path, value) => {
-    if (path === 'translation') node.setTranslation(value);
-    else if (path === 'rotation') node.setRotation(value);
-    else node.setScale(value);
-  };
   const nearlyEqual = (a, b, path) => {
     const same = a.every((x, i) => Math.abs(x - b[i]) < eps);
     // q and -q are the same rotation
@@ -730,36 +754,93 @@ function removeConstantAnimationChannels(document) {
   };
 
   for (const animation of animations) {
+    const channelsByNode = new Map();
     for (const channel of animation.listChannels()) {
-      if (animation.listChannels().length <= 1) break;
-
       const node = channel.getTargetNode();
-      const path = channel.getTargetPath();
-      const sampler = channel.getSampler();
-      if (!node || !sampler || path === 'weights') continue;
-      if (sampler.getInterpolation() === 'CUBICSPLINE') continue;
+      if (!node) continue;
+      if (!channelsByNode.has(node)) channelsByNode.set(node, []);
+      channelsByNode.get(node).push(channel);
+    }
 
-      const output = sampler.getOutput();
-      if (!output || output.getCount() === 0) continue;
-      const size = output.getElementSize();
-      const first = output.getElement(0, new Array(size).fill(0));
-      let constant = true;
-      for (let i = 1; i < output.getCount() && constant; i++) {
-        const v = output.getElement(i, new Array(size).fill(0));
-        if (!v.every((x, k) => Math.abs(x - first[k]) < eps)) constant = false;
+    for (const [node, channels] of channelsByNode) {
+      if (channels.some(c => !TRS_PATHS.includes(c.getTargetPath()))) continue;
+      const constants = channels.map(c => getConstantSamplerValue(c.getSampler(), eps));
+      if (constants.some(v => v === null)) continue;
+
+      const needsBake = channels.some((c, i) => !nearlyEqual(constants[i], getRestTRS(node, c.getTargetPath()), c.getTargetPath()));
+      if (needsBake && !canBake) continue;
+      if (animation.listChannels().length - channels.length < 1) continue;
+
+      channels.forEach((channel, i) => {
+        const sampler = channel.getSampler();
+        if (needsBake) setRestTRS(node, channel.getTargetPath(), constants[i]);
+        animation.removeChannel(channel);
+        channel.dispose();
+        if (!animation.listChannels().some(c => c.getSampler() === sampler)) {
+          animation.removeSampler(sampler);
+          sampler.dispose();
+        }
+      });
+    }
+  }
+}
+
+/**
+ * Give every animated joint a translation, rotation and scale channel.
+ * USD SkelAnimation stores all three per joint, and converters fill a missing
+ * glTF channel with zero / identity instead of the node's rest value, which
+ * collapses joints (e.g. a joint animated only by rotation loses its offset).
+ * Missing channels are added as 2-key constant channels holding the rest value.
+ */
+function completeJointAnimationChannels(document) {
+  const root = document.getRoot();
+  const jointSet = new Set(root.listSkins().flatMap(skin => skin.listJoints()));
+  if (jointSet.size === 0) return;
+
+  for (const animation of root.listAnimations()) {
+    const pathsByNode = new Map();
+    let start = Infinity;
+    let end = -Infinity;
+    let buffer = null;
+    for (const channel of animation.listChannels()) {
+      const node = channel.getTargetNode();
+      const input = channel.getSampler()?.getInput();
+      if (input && input.getCount() > 0) {
+        start = Math.min(start, input.getMin([0])[0]);
+        end = Math.max(end, input.getMax([0])[0]);
+        buffer = buffer || input.getBuffer();
       }
-      if (!constant) continue;
+      if (!node || !jointSet.has(node)) continue;
+      if (!pathsByNode.has(node)) pathsByNode.set(node, new Set());
+      pathsByNode.get(node).add(channel.getTargetPath());
+    }
+    if (!Number.isFinite(start)) continue;
 
-      if (!nearlyEqual(first, getRest(node, path), path)) {
-        if (!canBake) continue;
-        setRest(node, path, first);
-      }
-
-      animation.removeChannel(channel);
-      channel.dispose();
-      if (!animation.listChannels().some(c => c.getSampler() === sampler)) {
-        animation.removeSampler(sampler);
-        sampler.dispose();
+    let input = null;
+    for (const [node, paths] of pathsByNode) {
+      for (const path of TRS_PATHS) {
+        if (paths.has(path)) continue;
+        if (!input) {
+          input = document.createAccessor()
+            .setType('SCALAR')
+            .setArray(new Float32Array(end > start ? [start, end] : [start]))
+            .setBuffer(buffer);
+        }
+        const rest = getRestTRS(node, path);
+        const values = end > start ? [...rest, ...rest] : [...rest];
+        const output = document.createAccessor()
+          .setType(path === 'rotation' ? 'VEC4' : 'VEC3')
+          .setArray(new Float32Array(values))
+          .setBuffer(buffer);
+        const sampler = document.createAnimationSampler()
+          .setInput(input)
+          .setOutput(output)
+          .setInterpolation('LINEAR');
+        const channel = document.createAnimationChannel()
+          .setTargetNode(node)
+          .setTargetPath(path)
+          .setSampler(sampler);
+        animation.addSampler(sampler).addChannel(channel);
       }
     }
   }
@@ -910,7 +991,8 @@ function mergeBuffers(document) {
  * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
  * @param {boolean} options.closeSkeletonHierarchy - Add a root joint and turn non-joint nodes between joints into joints
  * @param {boolean} options.mergeSkinnedMeshes - Merge skinned mesh nodes that share a skin into one node
- * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels whose value never changes
+ * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels of nodes that never move
+ * @param {boolean} options.completeJointAnimationChannels - Give animated joints translation / rotation / scale channels
  * @param {boolean} options.normalizeSkinWeights - Normalize skin weights to sum to 1
  * @param {boolean} options.optimizeSkinJoints - Order joints parent-first and store JOINTS_n as UNSIGNED_BYTE when possible
  * @returns {Promise<Blob>} - Processed GLB file as Blob
@@ -942,6 +1024,10 @@ export async function autoFixGLB(file, options = {}) {
 
   if (options.removeConstantAnimationChannels) {
     removeConstantAnimationChannels(document);
+  }
+
+  if (options.completeJointAnimationChannels) {
+    completeJointAnimationChannels(document);
   }
 
   if (options.normalizeSkinWeights) {

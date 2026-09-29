@@ -150,6 +150,7 @@ export default function GLBAutoFix() {
         closeSkeletonHierarchy: true,
         mergeSkinnedMeshes: true,
         removeConstantAnimationChannels: true,
+        completeJointAnimationChannels: true,
         normalizeSkinWeights: true,
         optimizeSkinJoints: true,
         removeUnused: true,
