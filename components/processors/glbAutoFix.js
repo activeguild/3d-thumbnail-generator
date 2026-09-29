@@ -1,10 +1,35 @@
 import { WebIO } from '@gltf-transform/core';
-import { KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS, KHRDracoMeshCompression } from '@gltf-transform/extensions';
 import { prune } from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
 let _io = null;
+
+/**
+ * Draco extension that leaves skinned primitives (JOINTS_0 / WEIGHTS_0) uncompressed.
+ * Draco quantizes skin weights so they no longer sum to 1, and some USDZ converters
+ * mishandle Draco-compressed skinned meshes. gltf-transform skips non-indexed primitives,
+ * so indices are detached during prewrite and restored before the primitives are written.
+ */
+class KHRDracoMeshCompressionSkipSkinned extends KHRDracoMeshCompression {
+  prewrite(context, propertyType) {
+    const detached = [];
+    for (const mesh of this.document.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        if (prim.getAttribute('JOINTS_0') && prim.getIndices()) {
+          detached.push([prim, prim.getIndices()]);
+          prim.setIndices(null);
+        }
+      }
+    }
+    try {
+      return super.prewrite(context, propertyType);
+    } finally {
+      for (const [prim, indices] of detached) prim.setIndices(indices);
+    }
+  }
+}
 
 async function getIO() {
   if (!_io) {
@@ -14,7 +39,11 @@ async function getIO() {
     ]);
     await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
     _io = new WebIO()
-      .registerExtensions([KHRDracoMeshCompression, EXTTextureWebP, EXTMeshoptCompression])
+      // Register every supported extension so unrelated ones (e.g. KHR_materials_unlit) survive the round trip
+      .registerExtensions([
+        ...ALL_EXTENSIONS.filter(ext => ext !== KHRDracoMeshCompression),
+        KHRDracoMeshCompressionSkipSkinned,
+      ])
       .registerDependencies({
         'draco3d.decoder': decoderModule,
         'draco3d.encoder': encoderModule,
@@ -367,13 +396,16 @@ function decomposeMat4(m) {
 /**
  * Fix armature transforms for skinned meshes.
  *
- * Re-parents skinned mesh nodes to the scene root, preserving their
- * world transform as the new local transform. This resolves:
+ * Re-parents skinned mesh nodes to the scene root with an identity transform.
+ * This resolves:
  * - "Node with a skinned mesh is not root" warnings
  * - "Ancestor has non-identity transform" warnings (for USD conversion)
  *
- * The world transform is kept on the mesh node so that rendering stays
- * correct regardless of whether joints share the same ancestor chain.
+ * The glTF spec requires viewers to ignore the transform of a skinned mesh node
+ * (vertices are placed by joint world matrices × IBM), so resetting it does not
+ * change rendering, while USD converters that do apply it would double-transform.
+ * Non-skeletal children are moved to the scene root with their world transform kept.
+ * If a child is a joint or animated, the node's world transform is kept instead.
  * IBM and vertex data are left unchanged.
  */
 function fixArmatureTransforms(document) {
@@ -387,25 +419,376 @@ function fixArmatureTransforms(document) {
   if (scenes.length === 0) return;
   const scene = scenes[0];
 
-  const sceneChildren = new Set(scene.listChildren());
+  const protectedNodes = getProtectedNodes(document);
 
   for (const skinNode of skinnedNodes) {
-    if (sceneChildren.has(skinNode)) continue;
+    const children = skinNode.listChildren();
+    const canReset = children.every(child => !protectedNodes.has(child));
 
     // Compute current world transform before re-parenting
     const worldMat = getWorldTransform(skinNode);
-    const { translation, rotation, scale } = decomposeMat4(worldMat);
+
+    if (canReset) {
+      for (const child of children) {
+        const childTRS = decomposeMat4(getWorldTransform(child));
+        scene.addChild(child);
+        child.setTranslation(childTRS.translation);
+        child.setRotation(childTRS.rotation);
+        child.setScale(childTRS.scale);
+      }
+    }
 
     // Detach from parent, attach to scene root
-    const parent = skinNode.getParentNode();
-    if (parent) parent.removeChild(skinNode);
     scene.addChild(skinNode);
 
-    // Preserve world transform as local transform for correct rendering
-    skinNode.setTranslation(translation);
-    skinNode.setRotation(rotation);
-    skinNode.setScale(scale);
+    if (canReset) {
+      skinNode.setTranslation([0, 0, 0]);
+      skinNode.setRotation([0, 0, 0, 1]);
+      skinNode.setScale([1, 1, 1]);
+    } else {
+      // Children depend on this node's transform; preserve world transform as local
+      const { translation, rotation, scale } = decomposeMat4(worldMat);
+      skinNode.setTranslation(translation);
+      skinNode.setRotation(rotation);
+      skinNode.setScale(scale);
+    }
+  }
+}
 
+/**
+ * Merge skinned mesh nodes that share the same skin into a single node / mesh.
+ * USD converters handle one skinned mesh per skeleton more reliably.
+ * Only merges nodes at the scene root with identity transform, no children,
+ * no morph targets, and meshes not shared with other nodes.
+ */
+function mergeSkinnedMeshes(document) {
+  const root = document.getRoot();
+  const scenes = root.listScenes();
+  if (scenes.length === 0) return;
+  const sceneChildren = new Set(scenes[0].listChildren());
+
+  const meshUseCount = new Map();
+  for (const node of root.listNodes()) {
+    const mesh = node.getMesh();
+    if (mesh) meshUseCount.set(mesh, (meshUseCount.get(mesh) || 0) + 1);
+  }
+
+  const morphTargetNodes = new Set();
+  for (const animation of root.listAnimations()) {
+    for (const channel of animation.listChannels()) {
+      if (channel.getTargetPath() === 'weights') morphTargetNodes.add(channel.getTargetNode());
+    }
+  }
+
+  const isMergeable = (node) => {
+    const mesh = node.getMesh();
+    return (
+      mesh &&
+      sceneChildren.has(node) &&
+      isIdentityTRS(node) &&
+      node.listChildren().length === 0 &&
+      meshUseCount.get(mesh) === 1 &&
+      !morphTargetNodes.has(node) &&
+      mesh.getWeights().length === 0 &&
+      mesh.listPrimitives().every(p => p.listTargets().length === 0)
+    );
+  };
+
+  const nodesBySkin = new Map();
+  for (const node of root.listNodes()) {
+    const skin = node.getSkin();
+    if (!skin || !isMergeable(node)) continue;
+    if (!nodesBySkin.has(skin)) nodesBySkin.set(skin, []);
+    nodesBySkin.get(skin).push(node);
+  }
+
+  for (const skinNodes of nodesBySkin.values()) {
+    if (skinNodes.length < 2) continue;
+    const targetMesh = skinNodes[0].getMesh();
+    for (let i = 1; i < skinNodes.length; i++) {
+      const mesh = skinNodes[i].getMesh();
+      for (const prim of mesh.listPrimitives()) {
+        mesh.removePrimitive(prim);
+        targetMesh.addPrimitive(prim);
+      }
+      skinNodes[i].dispose();
+      mesh.dispose();
+    }
+  }
+}
+
+/**
+ * Find the lowest common ancestor (LCA) of the given nodes, or null if they
+ * do not share an ancestor (e.g. separate scene roots).
+ */
+function findCommonAncestor(nodes) {
+  const getAncestorChain = (node) => {
+    const chain = [node];
+    let current = node.getParentNode();
+    while (current) {
+      chain.push(current);
+      current = current.getParentNode();
+    }
+    return chain;
+  };
+
+  let common = nodes[0];
+  for (let i = 1; i < nodes.length && common; i++) {
+    const ancestors = new Set(getAncestorChain(common));
+    common = getAncestorChain(nodes[i]).find(n => ancestors.has(n)) || null;
+  }
+  return common;
+}
+
+/**
+ * Make each skin a closed joint hierarchy rooted at a single joint.
+ *
+ * USD skeletons only contain nodes listed as joints, so a non-joint node between
+ * the skeleton root and a joint (e.g. a scaled "group" node) loses its transform
+ * on conversion. This:
+ * - Adds a new "SkeletonRoot" joint (identity) when the common ancestor of the joints
+ *   is not itself a joint, and moves the joint branches under it
+ * - Adds every non-joint node on the path from the root joint to each joint as a joint,
+ *   with IBM = inverse of its rest world matrix (no vertices are weighted to it)
+ * World transforms, vertex data and existing IBMs are unchanged.
+ */
+function closeSkeletonHierarchy(document) {
+  const root = document.getRoot();
+  const scenes = root.listScenes();
+  if (scenes.length === 0) return;
+  const scene = scenes[0];
+
+  for (const skin of root.listSkins()) {
+    const joints = skin.listJoints();
+    if (joints.length === 0) continue;
+    const jointSet = new Set(joints);
+
+    // All ancestors of joints, including the joints themselves
+    const pathNodes = new Set();
+    for (const joint of joints) {
+      for (let n = joint; n && !pathNodes.has(n); n = n.getParentNode()) pathNodes.add(n);
+    }
+
+    let rootJoint = findCommonAncestor(joints);
+    if (!rootJoint || !jointSet.has(rootJoint)) {
+      const container = rootJoint;
+      const containerChildren = container ? container.listChildren() : scene.listChildren();
+      const branches = containerChildren.filter(child => pathNodes.has(child));
+      // Joints spread over several scenes cannot be moved under one root safely
+      if (!container && joints.some(j => !branches.includes(findTopAncestor(j)))) continue;
+
+      rootJoint = document.createNode('SkeletonRoot');
+      if (container) container.addChild(rootJoint);
+      else scene.addChild(rootJoint);
+      for (const branch of branches) rootJoint.addChild(branch);
+    }
+
+    // Collect non-joint nodes between the root joint and each joint
+    const additions = jointSet.has(rootJoint) ? [] : [rootJoint];
+    for (const joint of joints) {
+      for (let n = joint.getParentNode(); n && n !== rootJoint; n = n.getParentNode()) {
+        if (!jointSet.has(n) && !additions.includes(n)) additions.push(n);
+      }
+    }
+    if (additions.length === 0) continue;
+
+    const ibmAccessor = skin.getInverseBindMatrices();
+    const ibmArray = new Float32Array((joints.length + additions.length) * 16);
+    for (let i = 0; i < joints.length; i++) {
+      const m = ibmAccessor
+        ? ibmAccessor.getElement(i, new Array(16).fill(0))
+        : [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+      ibmArray.set(m, i * 16);
+    }
+    additions.forEach((node, k) => {
+      ibmArray.set(mat4Invert(getWorldTransform(node)), (joints.length + k) * 16);
+      skin.addJoint(node);
+    });
+
+    const newIBM = document.createAccessor(ibmAccessor?.getName() || 'inverseBindMatrices')
+      .setType('MAT4')
+      .setArray(ibmArray)
+      .setBuffer(ibmAccessor?.getBuffer() || root.listBuffers()[0] || null);
+    skin.setInverseBindMatrices(newIBM);
+  }
+}
+
+function findTopAncestor(node) {
+  let n = node;
+  while (n.getParentNode()) n = n.getParentNode();
+  return n;
+}
+
+/**
+ * Reorder skin joints so every parent comes before its children (USD skeleton
+ * topology requirement), remapping JOINTS_n and IBM accordingly. Also stores
+ * JOINTS_n as UNSIGNED_BYTE when the skin has 256 joints or fewer.
+ * Skipped if the joints do not form a single tree or a mesh is shared between skins.
+ */
+function optimizeSkinJoints(document) {
+  const root = document.getRoot();
+
+  for (const skin of root.listSkins()) {
+    const joints = skin.listJoints();
+    if (joints.length === 0) continue;
+    const jointSet = new Set(joints);
+
+    const rootJoints = joints.filter(j => !jointSet.has(j.getParentNode()));
+    if (rootJoints.length !== 1) continue;
+
+    // Depth-first order from the root joint, parents before children
+    const order = [];
+    const visit = (node) => {
+      if (!jointSet.has(node)) return;
+      order.push(node);
+      for (const child of node.listChildren()) visit(child);
+    };
+    visit(rootJoints[0]);
+    if (order.length !== joints.length) continue;
+
+    const skinnedNodes = root.listNodes().filter(n => n.getSkin() === skin && n.getMesh());
+    const skinMeshes = new Set(skinnedNodes.map(n => n.getMesh()));
+    const sharedWithOtherSkin = root.listNodes().some(
+      n => n.getMesh() && skinMeshes.has(n.getMesh()) && n.getSkin() !== skin
+    );
+    if (sharedWithOtherSkin) continue;
+
+    const oldIndex = new Map(joints.map((j, i) => [j, i]));
+    const remap = order.map(j => oldIndex.get(j)); // new -> old
+    const oldToNew = new Array(joints.length);
+    remap.forEach((oldIdx, newIdx) => { oldToNew[oldIdx] = newIdx; });
+    const reordered = remap.some((oldIdx, newIdx) => oldIdx !== newIdx);
+    const ArrayType = joints.length <= 256 ? Uint8Array : Uint16Array;
+
+    // Remap JOINTS_n accessors
+    const replaced = new Map();
+    for (const mesh of skinMeshes) {
+      for (const prim of mesh.listPrimitives()) {
+        for (const semantic of prim.listSemantics()) {
+          if (!semantic.startsWith('JOINTS_')) continue;
+          const accessor = prim.getAttribute(semantic);
+          if (!replaced.has(accessor)) {
+            if (!reordered && accessor.getArray() instanceof ArrayType) {
+              replaced.set(accessor, accessor);
+              continue;
+            }
+            const src = accessor.getArray();
+            const dst = new ArrayType(src.length);
+            for (let i = 0; i < src.length; i++) dst[i] = oldToNew[src[i]] ?? 0;
+            replaced.set(accessor, accessor.clone().setArray(dst).setNormalized(false));
+          }
+          prim.setAttribute(semantic, replaced.get(accessor));
+        }
+      }
+    }
+
+    if (!reordered) continue;
+
+    const ibmAccessor = skin.getInverseBindMatrices();
+    if (ibmAccessor) {
+      const ibmArray = new Float32Array(joints.length * 16);
+      remap.forEach((oldIdx, newIdx) => {
+        ibmArray.set(ibmAccessor.getElement(oldIdx, new Array(16).fill(0)), newIdx * 16);
+      });
+      skin.setInverseBindMatrices(ibmAccessor.clone().setArray(ibmArray));
+    }
+
+    for (const joint of joints) skin.removeJoint(joint);
+    for (const joint of order) skin.addJoint(joint);
+  }
+}
+
+/**
+ * Remove animation channels whose value never changes (LINEAR / STEP only).
+ * - If the constant equals the node's rest TRS, the channel is simply removed.
+ * - If the document has a single animation, the constant is baked into the node's
+ *   rest TRS first, then removed. With several animations the rest pose is shared,
+ *   so differing constants are kept.
+ * An animation always keeps at least one channel.
+ */
+function removeConstantAnimationChannels(document) {
+  const root = document.getRoot();
+  const animations = root.listAnimations();
+  const canBake = animations.length === 1;
+  const eps = 1e-6;
+
+  const getRest = (node, path) => {
+    if (path === 'translation') return node.getTranslation();
+    if (path === 'rotation') return node.getRotation();
+    return node.getScale();
+  };
+  const setRest = (node, path, value) => {
+    if (path === 'translation') node.setTranslation(value);
+    else if (path === 'rotation') node.setRotation(value);
+    else node.setScale(value);
+  };
+  const nearlyEqual = (a, b, path) => {
+    const same = a.every((x, i) => Math.abs(x - b[i]) < eps);
+    // q and -q are the same rotation
+    if (!same && path === 'rotation') return a.every((x, i) => Math.abs(x + b[i]) < eps);
+    return same;
+  };
+
+  for (const animation of animations) {
+    for (const channel of animation.listChannels()) {
+      if (animation.listChannels().length <= 1) break;
+
+      const node = channel.getTargetNode();
+      const path = channel.getTargetPath();
+      const sampler = channel.getSampler();
+      if (!node || !sampler || path === 'weights') continue;
+      if (sampler.getInterpolation() === 'CUBICSPLINE') continue;
+
+      const output = sampler.getOutput();
+      if (!output || output.getCount() === 0) continue;
+      const size = output.getElementSize();
+      const first = output.getElement(0, new Array(size).fill(0));
+      let constant = true;
+      for (let i = 1; i < output.getCount() && constant; i++) {
+        const v = output.getElement(i, new Array(size).fill(0));
+        if (!v.every((x, k) => Math.abs(x - first[k]) < eps)) constant = false;
+      }
+      if (!constant) continue;
+
+      if (!nearlyEqual(first, getRest(node, path), path)) {
+        if (!canBake) continue;
+        setRest(node, path, first);
+      }
+
+      animation.removeChannel(channel);
+      channel.dispose();
+      if (!animation.listChannels().some(c => c.getSampler() === sampler)) {
+        animation.removeSampler(sampler);
+        sampler.dispose();
+      }
+    }
+  }
+}
+
+/**
+ * Normalize skin weights (WEIGHTS_0, WEIGHTS_1, ...) so each vertex sums to 1.
+ * Fixes drift from Draco quantization and "Weights must sum to 1" validation errors.
+ */
+function normalizeSkinWeights(document) {
+  const root = document.getRoot();
+  const processed = new Set();
+
+  for (const mesh of root.listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const weightSets = prim.listSemantics()
+        .filter(s => s.startsWith('WEIGHTS_'))
+        .map(s => prim.getAttribute(s));
+      if (weightSets.length === 0 || weightSets.some(a => processed.has(a))) continue;
+      weightSets.forEach(a => processed.add(a));
+
+      const count = weightSets[0].getCount();
+      for (let i = 0; i < count; i++) {
+        const values = weightSets.map(a => a.getElement(i, [0, 0, 0, 0]));
+        const sum = values.reduce((acc, v) => acc + v.reduce((a, b) => a + Math.max(b, 0), 0), 0);
+        if (sum < 1e-8 || Math.abs(sum - 1) < 1e-6) continue;
+        weightSets.forEach((a, k) => a.setElement(i, values[k].map(w => Math.max(w, 0) / sum)));
+      }
+    }
   }
 }
 
@@ -417,34 +800,11 @@ function fixArmatureTransforms(document) {
 function fixSkeletonRoots(document) {
   const root = document.getRoot();
 
-  const getAncestorChain = (node) => {
-    const chain = [node];
-    let current = node.getParentNode();
-    while (current) {
-      chain.push(current);
-      current = current.getParentNode();
-    }
-    return chain;
-  };
-
-  const lcaOfTwo = (a, b) => {
-    const ancestorsA = new Set(getAncestorChain(a));
-    for (const node of getAncestorChain(b)) {
-      if (ancestorsA.has(node)) return node;
-    }
-    return null;
-  };
-
   for (const skin of root.listSkins()) {
     const joints = skin.listJoints();
     if (joints.length === 0) continue;
 
-    let commonRoot = joints[0];
-    for (let i = 1; i < joints.length; i++) {
-      commonRoot = lcaOfTwo(commonRoot, joints[i]);
-      if (!commonRoot) break;
-    }
-
+    const commonRoot = findCommonAncestor(joints);
     if (commonRoot && skin.getSkeleton() !== commonRoot) {
       skin.setSkeleton(commonRoot);
     }
@@ -548,7 +908,14 @@ function mergeBuffers(document) {
  * @param {boolean} options.fixArmatureTransforms - Fix ancestor transforms of skinned meshes
  * @param {boolean} options.removeUnused - Remove unused objects
  * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
+ * @param {boolean} options.closeSkeletonHierarchy - Add a root joint and turn non-joint nodes between joints into joints
+ * @param {boolean} options.mergeSkinnedMeshes - Merge skinned mesh nodes that share a skin into one node
+ * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels whose value never changes
+ * @param {boolean} options.normalizeSkinWeights - Normalize skin weights to sum to 1
+ * @param {boolean} options.optimizeSkinJoints - Order joints parent-first and store JOINTS_n as UNSIGNED_BYTE when possible
  * @returns {Promise<Blob>} - Processed GLB file as Blob
+ *
+ * Skinned primitives are always written without Draco compression.
  */
 export async function autoFixGLB(file, options = {}) {
   const document = await readDocument(file);
@@ -557,12 +924,32 @@ export async function autoFixGLB(file, options = {}) {
     fixArmatureTransforms(document);
   }
 
+  if (options.closeSkeletonHierarchy) {
+    closeSkeletonHierarchy(document);
+  }
+
+  if (options.mergeSkinnedMeshes) {
+    mergeSkinnedMeshes(document);
+  }
+
   if (options.applyTransforms) {
     applyTransforms(document);
   }
 
   if (options.normalizeNormals) {
     normalizeNormals(document);
+  }
+
+  if (options.removeConstantAnimationChannels) {
+    removeConstantAnimationChannels(document);
+  }
+
+  if (options.normalizeSkinWeights) {
+    normalizeSkinWeights(document);
+  }
+
+  if (options.optimizeSkinJoints) {
+    optimizeSkinJoints(document);
   }
 
   if (options.removeUnused) {

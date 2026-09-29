@@ -147,6 +147,11 @@ export default function GLBAutoFix() {
         applyTransforms: true,
         fixArmatureTransforms: true,
         normalizeNormals: true,
+        closeSkeletonHierarchy: true,
+        mergeSkinnedMeshes: true,
+        removeConstantAnimationChannels: true,
+        normalizeSkinWeights: true,
+        optimizeSkinJoints: true,
         removeUnused: true,
       };
 
