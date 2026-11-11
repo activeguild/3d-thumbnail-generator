@@ -247,14 +247,54 @@ function getProtectedNodes(document) {
 }
 
 /**
+ * Collect the nodes whose transform must stay as it is when transforms are applied:
+ * - Protected nodes (joints, skinned mesh nodes, animation targets)
+ * - Nodes of instanced meshes (the shared vertex data cannot hold several transforms)
+ * - Every ancestor of the above. An animated node only stores its local transform,
+ *   so resetting an ancestor (e.g. a Z-up to Y-up / unit scale root) would move and
+ *   resize it while the baked static meshes stay in place.
+ */
+function getKeptNodes(document, meshNodeMap) {
+  const keptNodes = new Set();
+  const keepWithAncestors = (node) => {
+    for (let n = node; n && !keptNodes.has(n); n = n.getParentNode()) keptNodes.add(n);
+  };
+
+  for (const node of getProtectedNodes(document)) {
+    // The transform of a skinned mesh node is ignored, so its ancestors are free to change
+    if (node.getSkin()) keptNodes.add(node);
+    else keepWithAncestors(node);
+  }
+  for (const meshNodes of meshNodeMap.values()) {
+    if (meshNodes.length > 1) meshNodes.forEach(keepWithAncestors);
+  }
+  return keptNodes;
+}
+
+/**
+ * Compute the transform of a node relative to its nearest kept ancestor
+ * (the world transform if it has none).
+ */
+function getTransformBelowKept(node, keptNodes) {
+  const localMat = mat4FromTRS(
+    node.getTranslation(),
+    node.getRotation(),
+    node.getScale()
+  );
+  const parent = node.getParentNode();
+  if (!parent || keptNodes.has(parent)) return localMat;
+  return mat4Multiply(getTransformBelowKept(parent, keptNodes), localMat);
+}
+
+/**
  * Apply transforms to all nodes in the document.
- * Bakes world transforms into mesh vertices and resets node TRS to identity.
- * Skips joints, skinned mesh nodes, and animation targets to preserve animations.
+ * Bakes node transforms into mesh vertices and resets node TRS to identity.
+ * Joints, skinned mesh nodes, animation targets, instanced mesh nodes and their
+ * ancestors keep their transform; meshes below them are baked relative to them.
  */
 function applyTransforms(document) {
   const root = document.getRoot();
   const nodes = root.listNodes();
-  const protectedNodes = getProtectedNodes(document);
 
   // Build a map of which meshes are used by which nodes (meshes can be instanced)
   const meshNodeMap = new Map();
@@ -265,20 +305,19 @@ function applyTransforms(document) {
     meshNodeMap.get(mesh).push(node);
   }
 
+  const keptNodes = getKeptNodes(document, meshNodeMap);
+
   // Track which Accessors have already been transformed to avoid double-transform on shared data
   const transformedAccessors = new Set();
 
-  // Process meshes: bake world transform into vertex data
+  // Process meshes: bake the transform into vertex data
   for (const [mesh, meshNodes] of meshNodeMap) {
-    // For instanced meshes (shared by multiple nodes), skip baking
-    if (meshNodes.length > 1) continue;
-
     const node = meshNodes[0];
 
-    // Skip protected nodes (joints, skinned meshes, animation targets)
-    if (protectedNodes.has(node)) continue;
+    // Skip nodes that keep their transform (includes instanced meshes)
+    if (keptNodes.has(node)) continue;
 
-    const worldMat = getWorldTransform(node);
+    const worldMat = getTransformBelowKept(node, keptNodes);
 
     // Skip if already identity
     const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
@@ -320,9 +359,9 @@ function applyTransforms(document) {
     }
   }
 
-  // Reset only non-protected node transforms to identity
+  // Reset only the transforms that were baked
   for (const node of nodes) {
-    if (protectedNodes.has(node)) continue;
+    if (keptNodes.has(node)) continue;
     node.setTranslation([0, 0, 0]);
     node.setRotation([0, 0, 0, 1]);
     node.setScale([1, 1, 1]);
