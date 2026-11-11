@@ -132,8 +132,8 @@ function mat4FromTRS(t, r, s) {
 }
 
 /**
- * Extract the 3x3 upper-left (rotation+scale) as a normal matrix (inverse transpose).
- * For transforming normals correctly.
+ * Invert the 3x3 upper-left (rotation+scale) of a 4x4 matrix (column-major).
+ * Normals are transformed by the transpose of this matrix (see vec3TransformNormal).
  */
 function mat3NormalFromMat4(m) {
   const a00 = m[0], a01 = m[1], a02 = m[2];
@@ -169,13 +169,14 @@ function vec3TransformMat4(v, m) {
 }
 
 /**
- * Transform a vec3 normal by a 3x3 normal matrix, then normalize.
+ * Transform a vec3 normal by the transpose of the inverse 3x3 matrix from
+ * mat3NormalFromMat4 (the normal matrix), then normalize.
  */
 function vec3TransformNormal(v, nm) {
   const x = v[0], y = v[1], z = v[2];
-  const rx = nm[0] * x + nm[3] * y + nm[6] * z;
-  const ry = nm[1] * x + nm[4] * y + nm[7] * z;
-  const rz = nm[2] * x + nm[5] * y + nm[8] * z;
+  const rx = nm[0] * x + nm[1] * y + nm[2] * z;
+  const ry = nm[3] * x + nm[4] * y + nm[5] * z;
+  const rz = nm[6] * x + nm[7] * y + nm[8] * z;
   const len = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1;
   return [rx / len, ry / len, rz / len];
 }
@@ -713,7 +714,11 @@ function optimizeSkinJoints(document) {
             }
             const src = accessor.getArray();
             const dst = new ArrayType(src.length);
-            for (let i = 0; i < src.length; i++) dst[i] = oldToNew[src[i]] ?? 0;
+            // Unused influences (weight 0) must keep joint 0 to stay valid
+            const weights = prim.getAttribute(semantic.replace('JOINTS_', 'WEIGHTS_'))?.getArray();
+            for (let i = 0; i < src.length; i++) {
+              dst[i] = weights && weights[i] === 0 ? 0 : oldToNew[src[i]] ?? 0;
+            }
             replaced.set(accessor, accessor.clone().setArray(dst).setNormalized(false));
           }
           prim.setAttribute(semantic, replaced.get(accessor));
@@ -765,6 +770,188 @@ function getConstantSamplerValue(sampler, eps) {
     if (!v.every((x, k) => Math.abs(x - first[k]) < eps)) return null;
   }
   return first;
+}
+
+/**
+ * Determinant of the upper-left 3x3 of a 4x4 matrix (column-major).
+ */
+function mat4Determinant3x3(m) {
+  return (
+    m[0] * (m[5] * m[10] - m[6] * m[9]) -
+    m[4] * (m[1] * m[10] - m[2] * m[9]) +
+    m[8] * (m[1] * m[6] - m[2] * m[5])
+  );
+}
+
+const TRIANGLES = 4;
+
+/**
+ * Turn rigidly animated mesh nodes (e.g. hundreds of snow particles, each its own
+ * mesh moved by a translation channel) into joints of one skinned mesh.
+ *
+ * Every such node costs a draw call. Afterwards the geometry is drawn with one
+ * primitive per material, each vertex bound to its former node with weight 1, so
+ * the animation plays exactly as before.
+ *
+ * - Candidates are nodes in the first scene that are targeted by translation /
+ *   rotation / scale channels, have a triangle mesh without morph targets and are
+ *   neither skinned nor joints already. Needs at least two of them.
+ * - Vertices are stored at their rest pose in world space, and the inverse bind
+ *   matrix of each joint is the inverse of that bind transform. A node whose rest
+ *   scale is zero (it would not be invertible) is bound with scale 1 instead.
+ * - The animated nodes, their hierarchy and the animations are unchanged; the nodes
+ *   only lose their mesh.
+ */
+function skinAnimatedMeshes(document) {
+  const root = document.getRoot();
+  const scene = root.listScenes()[0];
+  if (!scene) return;
+
+  const existingJoints = new Set(root.listSkins().flatMap(skin => skin.listJoints()));
+  const sceneChildren = new Set(scene.listChildren());
+
+  const animatedNodes = new Set();
+  const morphAnimatedNodes = new Set();
+  for (const animation of root.listAnimations()) {
+    for (const channel of animation.listChannels()) {
+      const node = channel.getTargetNode();
+      if (!node) continue;
+      if (TRS_PATHS.includes(channel.getTargetPath())) animatedNodes.add(node);
+      else morphAnimatedNodes.add(node);
+    }
+  }
+
+  const isCandidate = (node) => {
+    const mesh = node.getMesh();
+    if (!mesh || node.getSkin() || existingJoints.has(node)) return false;
+    if (morphAnimatedNodes.has(node) || node.listExtensions().length > 0) return false;
+    if (!sceneChildren.has(findTopAncestor(node))) return false;
+    if (mesh.getWeights().length > 0 || mesh.listExtensions().length > 0) return false;
+    const primitives = mesh.listPrimitives();
+    return primitives.length > 0 && primitives.every(prim =>
+      prim.getMode() === TRIANGLES &&
+      prim.getAttribute('POSITION') &&
+      prim.listTargets().length === 0 &&
+      prim.listExtensions().length === 0 &&
+      !prim.listSemantics().some(s => s.startsWith('JOINTS_') || s.startsWith('WEIGHTS_'))
+    );
+  };
+
+  const joints = root.listNodes().filter(node => animatedNodes.has(node) && isCandidate(node));
+  if (joints.length < 2) return;
+
+  const buffer = root.listBuffers()[0] || document.createBuffer();
+
+  // Primitives that can share one draw call: same material and vertex layout
+  const groups = new Map();
+  const getGroup = (prim) => {
+    const semantics = prim.listSemantics().slice().sort();
+    const key = [
+      root.listMaterials().indexOf(prim.getMaterial()),
+      ...semantics.map(s => `${s}:${prim.getAttribute(s).getType()}`),
+    ].join('|');
+    if (!groups.has(key)) {
+      groups.set(key, {
+        material: prim.getMaterial(),
+        attributes: new Map(semantics.map(s => [s, { type: prim.getAttribute(s).getType(), values: [] }])),
+        joints: [],
+        indices: [],
+        vertexCount: 0,
+      });
+    }
+    return groups.get(key);
+  };
+
+  const ibmArray = new Float32Array(joints.length * 16);
+
+  joints.forEach((node, jointIndex) => {
+    // Bind transform: the rest world transform, or with scale 1 when that is not invertible
+    let bindMat = getWorldTransform(node);
+    if (Math.abs(mat4Determinant3x3(bindMat)) < 1e-12) {
+      const unscaled = mat4FromTRS(node.getTranslation(), node.getRotation(), [1, 1, 1]);
+      const parent = node.getParentNode();
+      bindMat = parent ? mat4Multiply(getWorldTransform(parent), unscaled) : unscaled;
+    }
+    const invertible = Math.abs(mat4Determinant3x3(bindMat)) >= 1e-12;
+    if (!invertible) bindMat = Float64Array.from([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+    ibmArray.set(mat4Invert(bindMat), jointIndex * 16);
+
+    const normalMat = mat3NormalFromMat4(bindMat);
+    // A mirrored bind transform flips the triangle winding
+    const flip = mat4Determinant3x3(bindMat) < 0;
+
+    for (const prim of node.getMesh().listPrimitives()) {
+      const group = getGroup(prim);
+      const count = prim.getAttribute('POSITION').getCount();
+
+      for (const [semantic, target] of group.attributes) {
+        const accessor = prim.getAttribute(semantic);
+        const el = [];
+        for (let i = 0; i < count; i++) {
+          accessor.getElement(i, el);
+          if (semantic === 'POSITION') target.values.push(...vec3TransformMat4(el, bindMat));
+          else if (semantic === 'NORMAL') target.values.push(...vec3TransformNormal(el, normalMat));
+          else if (semantic === 'TANGENT') target.values.push(...vec4TransformTangent(el, bindMat));
+          else for (let k = 0; k < el.length; k++) target.values.push(el[k]);
+        }
+      }
+      for (let i = 0; i < count; i++) group.joints.push(jointIndex);
+
+      const indices = prim.getIndices();
+      const indexCount = indices ? indices.getCount() : count;
+      for (let i = 0; i + 2 < indexCount; i += 3) {
+        const a = indices ? indices.getScalar(i) : i;
+        const b = indices ? indices.getScalar(i + 1) : i + 1;
+        const c = indices ? indices.getScalar(i + 2) : i + 2;
+        group.indices.push(group.vertexCount + a, group.vertexCount + (flip ? c : b), group.vertexCount + (flip ? b : c));
+      }
+      group.vertexCount += count;
+    }
+  });
+
+  const skin = document.createSkin('AnimatedMeshes')
+    .setInverseBindMatrices(document.createAccessor('inverseBindMatrices').setType('MAT4').setArray(ibmArray).setBuffer(buffer));
+  for (const node of joints) skin.addJoint(node);
+
+  const JointArray = joints.length <= 256 ? Uint8Array : Uint16Array;
+  const skinnedMesh = document.createMesh('AnimatedMeshes');
+  for (const group of groups.values()) {
+    const prim = document.createPrimitive().setMaterial(group.material);
+    for (const [semantic, { type, values }] of group.attributes) {
+      prim.setAttribute(semantic, document.createAccessor().setType(type).setArray(new Float32Array(values)).setBuffer(buffer));
+    }
+    const jointArray = new JointArray(group.vertexCount * 4);
+    const weightArray = new Float32Array(group.vertexCount * 4);
+    for (let i = 0; i < group.vertexCount; i++) {
+      jointArray[i * 4] = group.joints[i];
+      weightArray[i * 4] = 1;
+    }
+    const IndexArray = group.vertexCount > 65535 ? Uint32Array : Uint16Array;
+    prim
+      .setAttribute('JOINTS_0', document.createAccessor().setType('VEC4').setArray(jointArray).setBuffer(buffer))
+      .setAttribute('WEIGHTS_0', document.createAccessor().setType('VEC4').setArray(weightArray).setBuffer(buffer))
+      .setIndices(document.createAccessor().setType('SCALAR').setArray(new IndexArray(group.indices)).setBuffer(buffer));
+    skinnedMesh.addPrimitive(prim);
+  }
+  scene.addChild(document.createNode('AnimatedMeshes').setMesh(skinnedMesh).setSkin(skin));
+
+  // Detach the original meshes and drop the ones (and their vertex data) nobody uses anymore
+  const oldMeshes = new Set(joints.map(node => node.getMesh()));
+  for (const node of joints) node.setMesh(null);
+  const isUnused = (property) => property.listParents().every(parent => parent === root);
+  for (const mesh of oldMeshes) {
+    if (!isUnused(mesh)) continue;
+    const accessors = new Set();
+    for (const prim of mesh.listPrimitives()) {
+      for (const accessor of prim.listAttributes()) accessors.add(accessor);
+      if (prim.getIndices()) accessors.add(prim.getIndices());
+      prim.dispose();
+    }
+    mesh.dispose();
+    for (const accessor of accessors) {
+      if (isUnused(accessor)) accessor.dispose();
+    }
+  }
 }
 
 /**
@@ -1026,6 +1213,11 @@ function mergeBuffers(document) {
  * @param {Object} options - Fix options (see autoFixGLB)
  */
 export async function fixDocument(document, options = {}) {
+  // First, so that the skin rules below also apply to the new skin
+  if (options.skinAnimatedMeshes) {
+    skinAnimatedMeshes(document);
+  }
+
   if (options.fixArmatureTransforms) {
     fixArmatureTransforms(document);
   }
@@ -1082,6 +1274,7 @@ export async function fixDocument(document, options = {}) {
  * @param {boolean} options.normalizeNormals - Normalize non-unit-length normal vectors
  * @param {boolean} options.closeSkeletonHierarchy - Add a root joint and turn non-joint nodes between joints into joints
  * @param {boolean} options.mergeSkinnedMeshes - Merge skinned mesh nodes that share a skin into one node
+ * @param {boolean} options.skinAnimatedMeshes - Merge rigidly animated mesh nodes into one skinned mesh
  * @param {boolean} options.removeConstantAnimationChannels - Remove animation channels of nodes that never move
  * @param {boolean} options.completeJointAnimationChannels - Give animated joints translation / rotation / scale channels
  * @param {boolean} options.normalizeSkinWeights - Normalize skin weights to sum to 1
@@ -1102,6 +1295,7 @@ export {
   applyTransforms,
   fixArmatureTransforms,
   mergeSkinnedMeshes,
+  skinAnimatedMeshes,
   closeSkeletonHierarchy,
   optimizeSkinJoints,
   removeConstantAnimationChannels,
