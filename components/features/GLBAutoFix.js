@@ -38,6 +38,7 @@ export default function GLBAutoFix() {
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [skinAnimatedMeshes, setSkinAnimatedMeshes] = useState(false);
   const fileInputRef = useRef(null);
   const validatorRef = useRef(null);
 
@@ -149,7 +150,7 @@ export default function GLBAutoFix() {
         normalizeNormals: true,
         closeSkeletonHierarchy: true,
         mergeSkinnedMeshes: true,
-        skinAnimatedMeshes: true,
+        skinAnimatedMeshes,
         removeConstantAnimationChannels: true,
         completeJointAnimationChannels: true,
         normalizeSkinWeights: true,
@@ -176,7 +177,7 @@ export default function GLBAutoFix() {
     } finally {
       setProcessing(false);
     }
-  }, [file, downloadBlob, validateBlob]);
+  }, [file, skinAnimatedMeshes, downloadBlob, validateBlob]);
 
   const handleDownload = useCallback(() => {
     if (!result) return;
@@ -233,6 +234,25 @@ export default function GLBAutoFix() {
             </button>
           </div>
         )}
+
+        <div className={styles.optionsSection}>
+          <h3 className={styles.optionsTitle}>Options</h3>
+          <div className={styles.optionItem}>
+            <input
+              id="skinAnimatedMeshes"
+              type="checkbox"
+              checked={skinAnimatedMeshes}
+              disabled={processing}
+              onChange={(e) => setSkinAnimatedMeshes(e.target.checked)}
+            />
+            <label htmlFor="skinAnimatedMeshes" className={styles.optionLabel}>
+              <span className={styles.optionName}>Merge animated meshes into a skinned mesh</span>
+              <span className={styles.optionDesc}>
+                Turns separately animated mesh nodes (e.g. particles) into joints of one skinned mesh to reduce draw calls.
+              </span>
+            </label>
+          </div>
+        </div>
 
         <button
           className={styles.fixButton}
