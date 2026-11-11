@@ -9,6 +9,7 @@ import {
   applyTransforms,
   fixArmatureTransforms,
   mergeSkinnedMeshes,
+  skinAnimatedMeshes,
   closeSkeletonHierarchy,
   optimizeSkinJoints,
   removeConstantAnimationChannels,
@@ -25,6 +26,7 @@ const ALL_OPTIONS = {
   normalizeNormals: true,
   closeSkeletonHierarchy: true,
   mergeSkinnedMeshes: true,
+  skinAnimatedMeshes: true,
   removeConstantAnimationChannels: true,
   completeJointAnimationChannels: true,
   normalizeSkinWeights: true,
@@ -299,6 +301,17 @@ describe('applyTransforms', () => {
     }
   });
 
+  it('rotates normals together with the vertices', () => {
+    const { doc, base } = createAnimatedScene({ animated: false });
+    applyTransforms(doc);
+    // Root turns Z-up into Y-up, so the +Z normals must point to +Y
+    const normal = base.getMesh().listPrimitives()[0].getAttribute('NORMAL');
+    const [x, y, z] = normal.getElement(0, []);
+    expect(x).toBeCloseTo(0, 5);
+    expect(y).toBeCloseTo(1, 5);
+    expect(z).toBeCloseTo(0, 5);
+  });
+
   it('keeps the transform of the ancestors of animated nodes', () => {
     const { doc, root, base, flake, sparkle } = createAnimatedScene();
     const before = worldPositions(doc);
@@ -363,6 +376,133 @@ describe('fixArmatureTransforms', () => {
 
     expect(bunnyNode.getTranslation()[0]).toBeCloseTo(1.2, 6);
     expect(bunnyNode.getScale()[0]).toBeCloseTo(1.58, 6);
+  });
+});
+
+/**
+ * createAnimatedScene plus a second animated mesh under Root:
+ * Smoke (rest scale 0, mirrored when visible) ← animated: scale
+ */
+function createParticleScene() {
+  const created = createAnimatedScene();
+  const { doc, root } = created;
+  const buffer = doc.getRoot().listBuffers()[0];
+  const acc = (type, array) => doc.createAccessor().setType(type).setArray(array).setBuffer(buffer);
+  const material = doc.createMaterial('Smoke');
+  const smoke = doc.createNode('Smoke').setTranslation([0, 4, 0]).setScale([0, 0, 0]).setMesh(
+    doc.createMesh('Smoke').addPrimitive(
+      doc.createPrimitive()
+        .setMaterial(material)
+        .setAttribute('POSITION', acc('VEC3', new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0])))
+        .setAttribute('NORMAL', acc('VEC3', new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1])))
+    )
+  );
+  root.addChild(smoke);
+  const sampler = doc.createAnimationSampler()
+    .setInput(acc('SCALAR', new Float32Array([0, 1])))
+    .setOutput(acc('VEC3', new Float32Array([0, 0, 0, -2, 2, 2])))
+    .setInterpolation('LINEAR');
+  doc.getRoot().listAnimations()[0].addSampler(sampler).addChannel(
+    doc.createAnimationChannel().setTargetNode(smoke).setTargetPath('scale').setSampler(sampler)
+  );
+  return { ...created, smoke };
+}
+
+/** Pose the particle scene somewhere in the middle of its animation. */
+function poseParticles(doc) {
+  const byName = Object.fromEntries(doc.getRoot().listNodes().map(n => [n.getName(), n]));
+  byName.Flake.setTranslation([1, 2, 1.5]);
+  byName.Smoke.setScale([-1, 1, 1]);
+}
+
+/** World-space positions of skinned vertices (single influence), keyed by joint name. */
+function skinnedPositionsByJoint(doc) {
+  const result = {};
+  for (const node of doc.getRoot().listNodes()) {
+    const skin = node.getSkin();
+    if (!skin) continue;
+    const joints = skin.listJoints();
+    const ibm = skin.getInverseBindMatrices();
+    const matrices = joints.map((joint, i) => new Matrix4().fromArray(multiply(joint.getWorldMatrix(), ibm.getElement(i, []))));
+    for (const prim of node.getMesh().listPrimitives()) {
+      const position = prim.getAttribute('POSITION');
+      for (let i = 0; i < position.getCount(); i++) {
+        const j = prim.getAttribute('JOINTS_0').getElement(i, [])[0];
+        expect(prim.getAttribute('WEIGHTS_0').getElement(i, [])).toEqual([1, 0, 0, 0]);
+        const v = new Vector3().fromArray(position.getElement(i, [])).applyMatrix4(matrices[j]);
+        (result[joints[j].getName()] ??= []).push(...v.toArray());
+      }
+    }
+  }
+  return result;
+}
+
+describe('skinAnimatedMeshes', () => {
+  it('turns animated mesh nodes into joints of one skinned mesh', () => {
+    const { doc, base, flake, sparkle, smoke } = createParticleScene();
+    skinAnimatedMeshes(doc);
+
+    const skins = doc.getRoot().listSkins();
+    expect(skins).toHaveLength(1);
+    expect(skins[0].listJoints()).toEqual([flake, smoke]);
+    expect(flake.getMesh()).toBeNull();
+    expect(smoke.getMesh()).toBeNull();
+    // Static meshes are untouched, also below an animated node
+    expect(base.getMesh()).not.toBeNull();
+    expect(sparkle.getMesh()).not.toBeNull();
+
+    const skinned = doc.getRoot().listNodes().filter(n => n.getSkin());
+    expect(skinned).toHaveLength(1);
+    expect(skinned[0].getParentNode()).toBeNull();
+    // One primitive per material
+    expect(skinned[0].getMesh().listPrimitives().map(p => p.getMaterial()?.getName() ?? null)).toEqual([null, 'Smoke']);
+    expect(doc.getRoot().listMeshes().map(m => m.getName()).sort()).toEqual(['AnimatedMeshes', 'Base', 'Sparkle']);
+  });
+
+  it('draws the animated geometry where the animation puts the nodes', () => {
+    const reference = createParticleScene().doc;
+    poseParticles(reference);
+    const expected = worldPositions(reference);
+
+    const { doc } = createParticleScene();
+    skinAnimatedMeshes(doc);
+    poseParticles(doc);
+    const actual = skinnedPositionsByJoint(doc);
+
+    expect(Object.keys(actual).sort()).toEqual(['Flake', 'Smoke']);
+    for (const name of Object.keys(actual)) {
+      expect(actual[name]).toHaveLength(expected[name].length);
+      actual[name].forEach((value, i) => expect(value, name).toBeCloseTo(expected[name][i], 5));
+    }
+  });
+
+  it('keeps the front faces of a mirrored node facing the same way', () => {
+    const { doc, flake } = createAnimatedScene();
+    const { doc: other, flake: otherFlake } = createParticleScene();
+    flake.setScale([-1, 1, 1]);
+    otherFlake.setScale([-1, 1, 1]);
+    skinAnimatedMeshes(doc); // a single animated mesh: nothing to merge
+    expect(doc.getRoot().listSkins()).toHaveLength(0);
+
+    skinAnimatedMeshes(other);
+    const prim = other.getRoot().listNodes().find(n => n.getSkin()).getMesh().listPrimitives()[0];
+    expect(Array.from(prim.getIndices().getArray())).toEqual([0, 2, 1]);
+  });
+
+  it('passes the glTF validator together with the other rules', async () => {
+    const { doc } = createParticleScene();
+    const before = (() => { const d = createParticleScene().doc; poseParticles(d); return worldPositions(d); })();
+    await fixDocument(doc, ALL_OPTIONS);
+
+    poseParticles(doc);
+    const actual = skinnedPositionsByJoint(doc);
+    for (const name of ['Flake', 'Smoke']) {
+      actual[name].forEach((value, i) => expect(value, name).toBeCloseTo(before[name][i], 5));
+    }
+
+    const glb = await new NodeIO().writeBinary(doc);
+    const report = await validateBytes(glb);
+    expect(report.issues.messages.filter(m => m.severity <= 1)).toEqual([]);
   });
 });
 
