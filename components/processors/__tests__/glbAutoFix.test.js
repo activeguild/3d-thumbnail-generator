@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { Document, NodeIO } from '@gltf-transform/core';
 import draco3d from 'draco3dgltf';
 import { validateBytes } from 'gltf-validator';
-import { Matrix4 } from 'three';
+import { Matrix4, Vector3 } from 'three';
 import {
   fixDocument,
   KHRDracoMeshCompressionSkipSkinned,
+  applyTransforms,
   fixArmatureTransforms,
   mergeSkinnedMeshes,
   closeSkeletonHierarchy,
@@ -213,6 +214,118 @@ function readGLBJson(glb) {
   const jsonLength = view.getUint32(12, true);
   return JSON.parse(new TextDecoder().decode(glb.slice(20, 20 + jsonLength)));
 }
+
+/**
+ * Scene like a real-world snow globe whose snow vanished after the fix:
+ *
+ * Scene
+ * └─ Root (Z-up to Y-up rotation, scale 0.1)
+ *    ├─ Base (static mesh, T 0,0,1)
+ *    ├─ Flake (mesh, T 1,2,3)          ← animated: translation
+ *    │  └─ Sparkle (static mesh, T 0,0,0.5)
+ *    ├─ InstanceA / InstanceB          ← share one mesh (only with instances: true)
+ */
+function createAnimatedScene({ animated = true, instances = false } = {}) {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const acc = (type, array) => doc.createAccessor().setType(type).setArray(array).setBuffer(buffer);
+  const createMesh = (name) => doc.createMesh(name).addPrimitive(
+    doc.createPrimitive()
+      .setAttribute('POSITION', acc('VEC3', new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0])))
+      .setAttribute('NORMAL', acc('VEC3', new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1])))
+      .setIndices(acc('SCALAR', new Uint16Array([0, 1, 2])))
+  );
+
+  const s = Math.SQRT1_2;
+  const root = doc.createNode('Root').setRotation([-s, 0, 0, s]).setScale([0.1, 0.1, 0.1]);
+  doc.createScene().addChild(root);
+  const base = doc.createNode('Base').setTranslation([0, 0, 1]).setMesh(createMesh('Base'));
+  const flake = doc.createNode('Flake').setTranslation([1, 2, 3]).setMesh(createMesh('Flake'));
+  const sparkle = doc.createNode('Sparkle').setTranslation([0, 0, 0.5]).setMesh(createMesh('Sparkle'));
+  root.addChild(base).addChild(flake);
+  flake.addChild(sparkle);
+
+  if (instances) {
+    const shared = createMesh('Shared');
+    root.addChild(doc.createNode('InstanceA').setTranslation([5, 0, 0]).setMesh(shared));
+    root.addChild(doc.createNode('InstanceB').setTranslation([-5, 0, 0]).setMesh(shared));
+  }
+
+  if (animated) {
+    const sampler = doc.createAnimationSampler()
+      .setInput(acc('SCALAR', new Float32Array([0, 1])))
+      .setOutput(acc('VEC3', new Float32Array([1, 2, 3, 1, 2, 0])))
+      .setInterpolation('LINEAR');
+    doc.createAnimation('Fall').addSampler(sampler).addChannel(
+      doc.createAnimationChannel().setTargetNode(flake).setTargetPath('translation').setSampler(sampler)
+    );
+  }
+  return { doc, root, base, flake, sparkle };
+}
+
+/** World-space vertex positions of every mesh node, keyed by node name. */
+function worldPositions(doc) {
+  const result = {};
+  for (const node of doc.getRoot().listNodes()) {
+    const mesh = node.getMesh();
+    if (!mesh) continue;
+    const world = new Matrix4().fromArray(node.getWorldMatrix());
+    const position = mesh.listPrimitives()[0].getAttribute('POSITION');
+    result[node.getName()] = [];
+    for (let i = 0; i < position.getCount(); i++) {
+      const v = new Vector3().fromArray(position.getElement(i, [])).applyMatrix4(world);
+      result[node.getName()].push(...v.toArray());
+    }
+  }
+  return result;
+}
+
+function expectSameWorldPositions(doc, before) {
+  const after = worldPositions(doc);
+  expect(Object.keys(after)).toEqual(Object.keys(before));
+  for (const name of Object.keys(before)) {
+    after[name].forEach((value, i) => expect(value, name).toBeCloseTo(before[name][i], 5));
+  }
+}
+
+describe('applyTransforms', () => {
+  it('bakes every transform when nothing is animated', () => {
+    const { doc } = createAnimatedScene({ animated: false });
+    const before = worldPositions(doc);
+    applyTransforms(doc);
+    expectSameWorldPositions(doc, before);
+    for (const node of doc.getRoot().listNodes()) {
+      expect(node.getMatrix(), node.getName()).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    }
+  });
+
+  it('keeps the transform of the ancestors of animated nodes', () => {
+    const { doc, root, base, flake, sparkle } = createAnimatedScene();
+    const before = worldPositions(doc);
+    applyTransforms(doc);
+    expectSameWorldPositions(doc, before);
+
+    expect(root.getScale()).toEqual([0.1, 0.1, 0.1]);
+    expect(flake.getTranslation()).toEqual([1, 2, 3]);
+    // Static meshes are baked relative to the kept ancestor
+    expect(base.getTranslation()).toEqual([0, 0, 0]);
+    expect(sparkle.getTranslation()).toEqual([0, 0, 0]);
+
+    // The animated node still ends up where the animation puts it
+    flake.setTranslation([1, 2, 0]);
+    const moved = new Vector3().setFromMatrixPosition(new Matrix4().fromArray(flake.getWorldMatrix()));
+    expect(moved.x).toBeCloseTo(0.1, 5);
+    expect(moved.y).toBeCloseTo(0, 5);
+    expect(moved.z).toBeCloseTo(-0.2, 5);
+  });
+
+  it('keeps the transforms of instanced meshes', () => {
+    const { doc } = createAnimatedScene({ animated: false, instances: true });
+    const before = worldPositions(doc);
+    applyTransforms(doc);
+    expectSameWorldPositions(doc, before);
+  });
+});
 
 describe('fixArmatureTransforms', () => {
   it('moves skinned mesh nodes to the scene root with an identity transform', () => {
